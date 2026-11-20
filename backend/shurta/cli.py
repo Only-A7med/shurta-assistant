@@ -1,0 +1,160 @@
+"""The ``python -m shurta`` command line."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Sequence
+
+from shurta.config import Settings, get_settings
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m shurta",
+        description=(
+            "Build and query a local, bilingual knowledge base of public service information."
+        ),
+    )
+    commands = parser.add_subparsers(dest="command", required=True, metavar="command")
+
+    ingest = commands.add_parser(
+        "ingest",
+        help="collect the selected services from the official site",
+        description=(
+            "Collects the selected public services from the official site in English and "
+            "Arabic, writes data/processed/services.json and a collection report. "
+            "Responses are cached under data/raw, so re-running issues no requests."
+        ),
+    )
+    ingest.add_argument(
+        "--refresh",
+        action="store_true",
+        help="ignore the cached responses and read the site again",
+    )
+
+    commands.add_parser(
+        "index",
+        help="build the search index from the collected corpus",
+    )
+
+    evaluate = commands.add_parser("eval", help="measure retrieval or answer quality")
+    evaluate.add_argument("target", choices=["retrieval", "answers"])
+    evaluate.add_argument(
+        "--model",
+        action="append",
+        default=None,
+        help="generation model to evaluate; repeat to compare several (answers only)",
+    )
+
+    commands.add_parser(
+        "doctor",
+        help="check that Ollama, the models, the corpus and the index are in place",
+    )
+
+    serve = commands.add_parser("serve", help="run the API")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--reload", action="store_true")
+
+    return parser
+
+
+def _ingest(settings: Settings, *, refresh: bool) -> int:
+    from shurta.collect import dubai_police
+    from shurta.collect.http import CollectionError
+    from shurta.collect.ingest import collect
+
+    if refresh:
+        for cached in settings.raw_dir.glob("*.json"):
+            cached.unlink()
+        print(f"Cleared the response cache in {settings.raw_dir}")
+
+    print(f"Reading {dubai_police.SITE} with at least 2 seconds between requests.")
+    try:
+        result = collect(settings.raw_dir)
+    except CollectionError as error:
+        print(f"Collection failed: {error}", file=sys.stderr)
+        return 1
+
+    settings.processed_dir.mkdir(parents=True, exist_ok=True)
+    settings.services_file.write_text(result.corpus.model_dump_json(indent=1), encoding="utf-8")
+    report_path = settings.processed_dir / "collection-report.md"
+    report_path.write_text(result.report, encoding="utf-8")
+
+    print(f"Collected {len(result.corpus.services)} services -> {settings.services_file}")
+    print(f"Validation report -> {report_path}")
+    if result.missing_slugs:
+        print(
+            f"{len(result.missing_slugs)} selected services were not found: "
+            f"{', '.join(result.missing_slugs)}",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def _index(settings: Settings) -> int:
+    from shurta.index.build import build_index
+
+    if not settings.services_file.exists():
+        print(
+            f"No corpus at {settings.services_file}. Run `python -m shurta ingest` first.",
+            file=sys.stderr,
+        )
+        return 1
+    summary = build_index(settings)
+    print(summary)
+    return 0
+
+
+def _doctor(settings: Settings) -> int:
+    from shurta.doctor import run_doctor
+
+    return run_doctor(settings)
+
+
+def _evaluate(settings: Settings, target: str, models: Sequence[str] | None) -> int:
+    if target == "retrieval":
+        from shurta.evaluation.retrieval import main as retrieval_main
+
+        return retrieval_main(settings)
+
+    from shurta.evaluation.answers import main as answers_main
+
+    return answers_main(settings, models=list(models) if models else None)
+
+
+def _serve(settings: Settings, host: str, port: int, reload: bool) -> int:
+    import uvicorn
+
+    uvicorn.run(
+        "shurta.api.app:create_app",
+        factory=True,
+        host=host,
+        port=port,
+        reload=reload,
+    )
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    arguments = parser.parse_args(argv)
+    settings = get_settings()
+
+    if arguments.command == "ingest":
+        return _ingest(settings, refresh=arguments.refresh)
+    if arguments.command == "index":
+        return _index(settings)
+    if arguments.command == "eval":
+        return _evaluate(settings, arguments.target, arguments.model)
+    if arguments.command == "doctor":
+        return _doctor(settings)
+    if arguments.command == "serve":
+        return _serve(settings, arguments.host, arguments.port, arguments.reload)
+
+    parser.error(f"unknown command {arguments.command!r}")  # pragma: no cover
+    return 2
+
+
+__all__ = ["build_parser", "main"]
