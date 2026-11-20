@@ -80,6 +80,16 @@ class RetrievalResult:
     """What a search returned, and how long each half of it took."""
 
     chunks: tuple[Retrieved, ...] = ()
+    best_similarity: float = 0.0
+    """Cosine similarity of the closest passage to the question.
+
+    Reported separately from the fused score because the two answer different
+    questions. The fused score says which passage ranked best; it is built from
+    rank positions alone, so the top passage always scores near the maximum
+    whether or not it is relevant. Cosine similarity is an absolute measure, and
+    is therefore the only one of the two that can say "nothing here is close".
+    """
+
     embedding_ms: float = 0.0
     search_ms: float = 0.0
     timings: dict[str, float] = field(default_factory=dict)
@@ -126,6 +136,8 @@ class HybridRetriever:
         embedding_ms = (time.perf_counter() - started) * 1000
 
         started = time.perf_counter()
+        similarities = self.index.dense_scores(np.asarray(query_vector, dtype=np.float32))
+        best_similarity = float(similarities.max()) if similarities.size else 0.0
         lexical = self.lexical_ranking(query, candidates)
         dense = self.dense_ranking(query_vector, candidates)
 
@@ -163,6 +175,7 @@ class HybridRetriever:
 
         return RetrievalResult(
             chunks=retrieved,
+            best_similarity=best_similarity,
             embedding_ms=embedding_ms,
             search_ms=search_ms,
             timings={
