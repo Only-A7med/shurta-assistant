@@ -1,0 +1,28 @@
+# The fixed subset the latency work is measured on, so every change is
+# compared on the same questions. Mixed English, Modern Standard Arabic, Gulf
+# dialect and code-switched; every item is answerable and carries checkable
+# facts, so a speed change that costs accuracy shows up here.
+
+en-001
+en-003
+en-004
+en-022
+en-030
+en-034
+en-039
+
+ar-001
+ar-003
+ar-004
+ar-022
+ar-030
+ar-034
+ar-039
+
+dia-002
+dia-003
+dia-005
+
+dia-006
+dia-008
+dia-009

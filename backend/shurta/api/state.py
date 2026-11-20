@@ -108,6 +108,7 @@ class ApplicationState:
                 self.client,
                 top_k=self.settings.top_k,
                 options=self.settings.generation_options(),
+                max_passage_chars=self.settings.max_passage_chars,
             )
         return self._pipeline
 

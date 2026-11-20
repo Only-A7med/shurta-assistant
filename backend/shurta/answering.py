@@ -117,12 +117,14 @@ class AnswerPipeline:
         top_k: int = 4,
         options: GenerationOptions | None = None,
         model: str | None = None,
+        max_passage_chars: int | None = None,
     ) -> None:
         self.retriever = retriever
         self.client = client
         self.top_k = top_k
         self.options = options or GenerationOptions()
         self.model = model
+        self.max_passage_chars = max_passage_chars
 
     async def prepare(self, question: str) -> AnswerContext:
         """Classify, retrieve, and decide how the question will be answered."""
@@ -163,7 +165,12 @@ class AnswerPipeline:
             kind=ResponseKind.ANSWER,
             citations=citations_for(retrieval.chunks, language),
             retrieval=retrieval,
-            prompt=build_prompt(question, retrieval.chunks, language),
+            prompt=build_prompt(
+                question,
+                retrieval.chunks,
+                language,
+                max_passage_chars=self.max_passage_chars,
+            ),
         )
 
     async def stream(self, context: AnswerContext) -> AsyncIterator[str]:

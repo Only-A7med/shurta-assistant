@@ -36,6 +36,10 @@ data/index/
 # too. Only the questions and the aggregate scores are committed.
 eval/key_facts.local.jsonl
 
+# Per-model scorecards are the resume point of a long answer evaluation. They
+# hold per-question scores drawn from the local corpus, so they stay local.
+eval/scorecards/
+
 # Editors / OS
 .vscode/
 .idea/

@@ -1,37 +1,29 @@
 """Measuring generated answers, and choosing the default model from the numbers.
 
-What gets scored, and why each one is here:
+What is scored: key-fact correctness (does the answer state the figures,
+durations and documents the cited service states), citation correctness (every
+bracketed number must be one of the passages supplied), answer language,
+guardrail behaviour, and speed.
 
-**Key-fact correctness.** Does the answer contain the figures, durations and
-documents the cited service actually states? This is the measure that matters:
-an answer that reads well and gives the wrong fee is worse than no answer.
-Checked by rule, on Arabic-normalised text, so a fee written in Arabic-Indic
-digits matches one written in Western digits.
+Everything is checked by rule rather than judged by a model, on
+Arabic-normalised text so a fee in Arabic-Indic digits matches one in Western
+digits.
 
-**Citation correctness.** Every bracketed number in the answer must be one of
-the passages that was actually supplied. A model that cites ``[7]`` when four
-passages were given has invented a source, which is the failure most likely to
-be believed.
-
-**Answer language.** An Arabic question must get an Arabic answer. A small model
-will otherwise answer in the language of the retrieved passages.
-
-**Behaviour.** Does an emergency get the emergency numbers, a personal-case
-question a refusal, an out-of-scope question an admission of not knowing?
-
-**Speed.** Time to first token and tokens per second, at the median and the
-95th percentile. On processor-only inference these decide whether the thing is
-usable at all, so they carry as much weight as accuracy in the final choice.
+A run is resumable. Each model's scorecard is written as that model finishes and
+is reused on the next run unless ``--force`` is given, so a two-hour comparison
+is not all-or-nothing.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import re
 import statistics
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from shurta.answering import AnswerPipeline, ResponseKind
 from shurta.arabic import arabic_ratio
@@ -44,7 +36,7 @@ from shurta.evaluation.dataset import (
     load_questions,
 )
 from shurta.evaluation.facts import contains_amount, contains_document, contains_duration
-from shurta.llm.base import GenerationOptions, ModelError
+from shurta.llm.base import ModelError
 from shurta.llm.ollama import OllamaClient
 from shurta.models import Language
 from shurta.retrieval.hybrid import HybridRetriever
@@ -53,6 +45,11 @@ from shurta.retrieval.store import SearchIndex
 RESULTS_DIR = REPOSITORY_ROOT / "eval"
 RESULTS_MARKDOWN = RESULTS_DIR / "results.md"
 RESULTS_JSON = RESULTS_DIR / "answer-results.json"
+SCORECARD_DIR = RESULTS_DIR / "scorecards"
+SUBSET_DIR = RESULTS_DIR / "subsets"
+
+#: The selection name for a run over the whole question set.
+FULL_SELECTION = "all"
 
 #: The expected response kind for each expected behaviour.
 EXPECTED_KIND = {
@@ -62,12 +59,11 @@ EXPECTED_KIND = {
     Behaviour.OUT_OF_SCOPE: ResponseKind.NO_CONTEXT,
 }
 
-#: An out-of-scope question may legitimately be routed to the model, which is
-#: then expected to say the passages do not cover it. So both outcomes count as
-#: correct behaviour for those items.
+#: An out-of-scope question may legitimately reach the model, which is then
+#: expected to say the passages do not cover it. Both outcomes count as correct.
 ALSO_ACCEPTABLE = {Behaviour.OUT_OF_SCOPE: {ResponseKind.ANSWER}}
 
-_CITATION_PATTERN = r"\[(\d{1,2})\]"
+_CITATION_PATTERN = re.compile(r"\[(\d{1,2})\]")
 
 #: Phrases that count as admitting the answer is not in the passages. Checked
 #: only for out-of-scope questions that reached the model.
@@ -115,6 +111,9 @@ class ItemResult:
     total_ms: float
     tokens_per_second: float
     used_model: bool
+    prompt_tokens: int = 0
+    prompt_ms: float = 0.0
+    load_ms: float = 0.0
     error: str = ""
 
     @property
@@ -129,6 +128,13 @@ class ModelResult:
 
     model: str
     items: list[ItemResult] = field(default_factory=list)
+    selection: str = FULL_SELECTION
+    note: str = ""
+
+    @property
+    def comparable(self) -> bool:
+        """Whether this run covered the whole question set."""
+        return self.selection == FULL_SELECTION
 
     def _generated(self) -> list[ItemResult]:
         """Items that actually ran the model, which is what timings describe."""
@@ -205,13 +211,30 @@ class ModelResult:
         return self._percentile([item.total_ms for item in self._generated()], 0.95)
 
     @property
+    def prompt_tokens_p50(self) -> float:
+        """Median prompt length, which is what the latency work is aimed at."""
+        counts = [float(item.prompt_tokens) for item in self._generated() if item.prompt_tokens]
+        return statistics.median(counts) if counts else 0.0
+
+    @property
+    def prompt_ms_p50(self) -> float:
+        return self._percentile([item.prompt_ms for item in self._generated()], 0.5)
+
+    @property
+    def prompt_ms_p95(self) -> float:
+        return self._percentile([item.prompt_ms for item in self._generated()], 0.95)
+
+    @property
     def tokens_per_second(self) -> float:
         rates = [item.tokens_per_second for item in self._generated() if item.tokens_per_second]
         return statistics.median(rates) if rates else 0.0
 
     def to_dict(self) -> dict[str, object]:
+        """The aggregate scores, which is all that gets published."""
         return {
             "model": self.model,
+            "selection": self.selection,
+            "note": self.note,
             "questions": len(self.items),
             "generated": len(self._generated()),
             "failures": self.failures,
@@ -221,6 +244,9 @@ class ModelResult:
             "citation_presence": round(self.citation_presence, 4),
             "language_match": round(self.language_match, 4),
             "behaviour_accuracy": round(self.behaviour_accuracy, 4),
+            "prompt_tokens_p50": round(self.prompt_tokens_p50, 1),
+            "prompt_ms_p50": round(self.prompt_ms_p50, 1),
+            "prompt_ms_p95": round(self.prompt_ms_p95, 1),
             "first_token_ms_p50": round(self.first_token_p50, 1),
             "first_token_ms_p95": round(self.first_token_p95, 1),
             "total_ms_p50": round(self.total_p50, 1),
@@ -229,20 +255,82 @@ class ModelResult:
         }
 
 
+# --- choosing which questions to run -----------------------------------------
+
+
+def group_of(question: Question) -> str:
+    """The group a question is counted in: its dialect, or else its language."""
+    return question.dialect or question.language.value
+
+
+def first_per_group(questions: Sequence[Question], limit: int) -> list[Question]:
+    """The first ``limit`` questions of each group, in file order."""
+    seen: dict[str, int] = {}
+    kept: list[Question] = []
+    for question in questions:
+        group = group_of(question)
+        if seen.get(group, 0) >= limit:
+            continue
+        seen[group] = seen.get(group, 0) + 1
+        kept.append(question)
+    return kept
+
+
+def subset_file(name: str) -> Path:
+    """The file a ``--subset`` value names: a path, or a name under eval/subsets."""
+    candidate = Path(name)
+    if candidate.suffix or candidate.parent != Path("."):
+        return candidate
+    return SUBSET_DIR / f"{name}.txt"
+
+
+def read_subset_ids(path: Path) -> list[str]:
+    """Question identifiers from a subset file, ignoring blanks and comments."""
+    if not path.exists():
+        raise FileNotFoundError(f"no subset file at {path}")
+    ids: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.split("#", 1)[0].strip()
+        if stripped:
+            ids.append(stripped)
+    return ids
+
+
+def by_ids(questions: Sequence[Question], ids: Iterable[str]) -> list[Question]:
+    """The named questions, in the order the names were given."""
+    known = {question.id: question for question in questions}
+    missing = [identifier for identifier in ids if identifier not in known]
+    if missing:
+        raise KeyError(f"unknown question id(s): {', '.join(missing)}")
+    return [known[identifier] for identifier in ids]
+
+
+def select(
+    questions: Sequence[Question],
+    *,
+    limit: int | None = None,
+    subset: str | None = None,
+) -> tuple[list[Question], str]:
+    """The questions to run, and the name that selection is recorded under."""
+    if subset is not None:
+        path = subset_file(subset)
+        return by_ids(questions, read_subset_ids(path)), f"subset:{path.stem}"
+    if limit is not None:
+        return first_per_group(questions, limit), f"limit:{limit}"
+    return list(questions), FULL_SELECTION
+
+
 # --- scoring one answer ------------------------------------------------------
 
 
 def _cited_numbers(text: str) -> list[int]:
-    import re
-
-    return [int(match) for match in re.findall(_CITATION_PATTERN, text)]
+    return [int(match) for match in _CITATION_PATTERN.findall(text)]
 
 
 def check_citations(text: str, available: int) -> tuple[bool, int]:
     """Whether every cited number exists, and how many were cited.
 
-    A citation outside the supplied range is an invented source, which is the
-    failure a reader is least able to detect.
+    A citation outside the supplied range is an invented source.
     """
     numbers = _cited_numbers(text)
     if not numbers:
@@ -254,9 +342,8 @@ def check_citations(text: str, available: int) -> tuple[bool, int]:
 def check_language(text: str, expected: Language) -> bool:
     """Whether the answer is written in the language that was asked for.
 
-    An Arabic answer always contains Arabic script. An English answer is allowed
-    some Arabic, because a correct English answer may quote an Arabic service
-    name, so the test is that it is not *predominantly* Arabic.
+    An English answer is allowed some Arabic, because it may quote an Arabic
+    service name, so the test is that it is not predominantly Arabic.
     """
     stripped = text.strip()
     if not stripped:
@@ -292,8 +379,6 @@ def count_facts(text: str, facts: KeyFacts) -> tuple[int, int]:
 def _behaviour_correct(question: Question, kind: ResponseKind, text: str) -> bool:
     expected = EXPECTED_KIND[question.expected_behaviour]
     if kind is expected:
-        # An out-of-scope question routed to the fixed response is correct by
-        # construction; one that reached the model must actually decline.
         return True
     if kind in ALSO_ACCEPTABLE.get(question.expected_behaviour, set()):
         return check_declines(text, Language(question.language))
@@ -304,14 +389,14 @@ async def score_question(
     pipeline: AnswerPipeline, question: Question, facts: KeyFacts | None
 ) -> ItemResult:
     """Run one question and score the answer."""
-    group = question.dialect or question.language
+    group = group_of(question)
     try:
         answer = await pipeline.answer(question.question)
     except ModelError as error:
         return ItemResult(
             id=question.id,
             language=question.language.value,
-            group=str(group),
+            group=group,
             behaviour=question.expected_behaviour.value,
             kind="error",
             behaviour_correct=False,
@@ -334,7 +419,7 @@ async def score_question(
     return ItemResult(
         id=question.id,
         language=question.language.value,
-        group=str(group),
+        group=group,
         behaviour=question.expected_behaviour.value,
         kind=context.kind.value,
         behaviour_correct=_behaviour_correct(question, context.kind, answer.text),
@@ -347,6 +432,9 @@ async def score_question(
         total_ms=answer.total_ms,
         tokens_per_second=answer.tokens_per_second,
         used_model=context.needs_model,
+        prompt_tokens=answer.prompt_tokens,
+        prompt_ms=answer.prompt_ms,
+        load_ms=answer.load_ms,
     )
 
 
@@ -358,9 +446,11 @@ async def evaluate_model(
     key_facts: dict[str, KeyFacts],
     settings: Settings,
     *,
+    selection: str = FULL_SELECTION,
+    note: str = "",
     progress: bool = True,
 ) -> ModelResult:
-    """Score one model over the whole question set."""
+    """Score one model over the selected questions."""
 
     async def embed(query: str) -> list[float]:
         return (await client.embed([query]))[0]
@@ -370,18 +460,15 @@ async def evaluate_model(
         client,
         top_k=settings.top_k,
         model=model,
-        options=GenerationOptions(
-            num_ctx=settings.num_ctx,
-            max_tokens=settings.max_answer_tokens,
-            keep_alive=settings.keep_alive,
-        ),
+        options=settings.generation_options(),
+        max_passage_chars=settings.max_passage_chars,
     )
 
-    # Warming first keeps the model-load cost out of the first question's
-    # time-to-first-token, which would otherwise dominate the percentiles.
-    await client.warm(model)
+    # Warming keeps the model-load cost out of the first question's time to
+    # first token, which would otherwise dominate the percentiles.
+    await client.warm(model, keep_alive=settings.keep_alive)
 
-    result = ModelResult(model=model)
+    result = ModelResult(model=model, selection=selection, note=note)
     for position, question in enumerate(questions, start=1):
         result.items.append(await score_question(pipeline, question, key_facts.get(question.id)))
         if progress and position % 10 == 0:
@@ -389,10 +476,65 @@ async def evaluate_model(
     return result
 
 
+# --- scorecards, so a long run is resumable ----------------------------------
+
+
+def scorecard_path(model: str, selection: str = FULL_SELECTION) -> Path:
+    """Where one model's scorecard for one selection is kept."""
+    slug = re.sub(r"[^a-z0-9._-]+", "-", f"{model}--{selection}".casefold())
+    return SCORECARD_DIR / f"{slug}.json"
+
+
+def write_scorecard(result: ModelResult, *, settings: Settings) -> Path:
+    """Write one model's scorecard as soon as that model finishes."""
+    path = scorecard_path(result.model, result.selection)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "measured_at": datetime.now(UTC).isoformat(),
+                "settings": {
+                    "top_k": settings.top_k,
+                    "num_ctx": settings.num_ctx,
+                    "max_answer_tokens": settings.max_answer_tokens,
+                    "max_passage_chars": settings.max_passage_chars,
+                    "num_thread": settings.num_thread,
+                    "keep_alive": settings.keep_alive,
+                },
+                "scores": result.to_dict(),
+                "items": [item.__dict__ for item in result.items],
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def read_scorecard(model: str, selection: str = FULL_SELECTION) -> ModelResult | None:
+    """A previously written scorecard, or ``None`` if there is none to reuse."""
+    path = scorecard_path(model, selection)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        items = [ItemResult(**item) for item in payload["items"]]
+    except (ValueError, KeyError, TypeError):
+        return None
+    scores = payload.get("scores", {})
+    return ModelResult(
+        model=model,
+        items=items,
+        selection=selection,
+        note=str(scores.get("note", "")),
+    )
+
+
 # --- choosing the default ----------------------------------------------------
 
 #: Weights for the composite score that picks the default model. Accuracy
-#: dominates, but speed is not a tie-breaker here: on processor-only inference a
+#: dominates, but speed is not a tie-breaker: on processor-only inference a
 #: model that is right and unusably slow is not the better choice.
 WEIGHTS = {
     "key_fact_recall": 0.30,
@@ -402,8 +544,8 @@ WEIGHTS = {
     "speed": 0.25,
 }
 
-#: Time to first token, in milliseconds, at which the speed component reaches
-#: zero. Chosen as the point where a reader watching a blank panel gives up.
+#: Time to first token at which the speed component reaches zero, in
+#: milliseconds: the point where a reader watching a blank panel gives up.
 SLOW_FIRST_TOKEN_MS = 20_000
 
 
@@ -425,68 +567,81 @@ def composite(result: ModelResult) -> float:
     )
 
 
-def choose_default(results: Sequence[ModelResult]) -> ModelResult:
-    """The model with the best composite score."""
-    return max(results, key=composite)
+def choose_default(results: Sequence[ModelResult]) -> ModelResult | None:
+    """The best composite score among the models run over the whole set."""
+    comparable = [result for result in results if result.comparable and result.items]
+    return max(comparable, key=composite) if comparable else None
 
 
 # --- reporting ---------------------------------------------------------------
 
 
-def as_markdown(results: Sequence[ModelResult], *, index: SearchIndex) -> str:
-    chosen = choose_default(results) if results else None
+def _questions_cell(result: ModelResult) -> str:
+    if result.comparable:
+        return str(len(result.items))
+    return f"{len(result.items)} (subset)"
+
+
+def as_markdown(results: Sequence[ModelResult], *, chunks_indexed: int) -> str:
+    chosen = choose_default(results)
 
     lines = [
         "# Answer evaluation",
         "",
-        f"Measured on {datetime.now(UTC):%Y-%m-%d}, over "
-        f"{len(results[0].items) if results else 0} questions and "
-        f"{index.metadata.chunk_count} indexed passages, on processor-only inference.",
+        f"Measured on {datetime.now(UTC):%Y-%m-%d} over {chunks_indexed} indexed passages, "
+        "on processor-only inference.",
         "",
-        "Every figure below is measured by rule, not judged by a model. Monetary",
-        "amounts, durations and document phrases are compared against what the cited",
-        "service actually states, on Arabic-normalised text so that a fee written in",
-        "Arabic-Indic digits matches one written in Western digits.",
+        "Every figure is measured by rule, not judged by a model. Amounts, durations and",
+        "document phrases are compared against what the cited service states, on",
+        "Arabic-normalised text so that a fee in Arabic-Indic digits matches one in",
+        "Western digits.",
         "",
         "## Accuracy",
         "",
-        "| Model | Key facts recalled | All facts present | Citations valid | Citations present "
-        "| Answer language | Behaviour |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Model | Questions | Key facts recalled | All facts present | Citations valid "
+        "| Citations present | Answer language | Behaviour |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for result in results:
         lines.append(
-            f"| `{result.model}` | {result.fact_recall:.3f} | {result.fact_complete:.3f} "
-            f"| {result.citation_validity:.3f} | {result.citation_presence:.3f} "
-            f"| {result.language_match:.3f} | {result.behaviour_accuracy:.3f} |"
+            f"| `{result.model}` | {_questions_cell(result)} | {result.fact_recall:.3f} "
+            f"| {result.fact_complete:.3f} | {result.citation_validity:.3f} "
+            f"| {result.citation_presence:.3f} | {result.language_match:.3f} "
+            f"| {result.behaviour_accuracy:.3f} |"
         )
 
     lines += [
         "",
         "## Speed",
         "",
-        "| Model | First token p50 | First token p95 | Full answer p50 | Full answer p95 "
-        "| Tokens per second |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Model | Prompt tokens p50 | Prompt processing p50 | First token p50 "
+        "| First token p95 | Full answer p50 | Full answer p95 | Tokens per second |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for result in results:
         lines.append(
-            f"| `{result.model}` | {result.first_token_p50 / 1000:.1f} s "
+            f"| `{result.model}` | {result.prompt_tokens_p50:.0f} "
+            f"| {result.prompt_ms_p50 / 1000:.1f} s "
+            f"| {result.first_token_p50 / 1000:.1f} s "
             f"| {result.first_token_p95 / 1000:.1f} s "
             f"| {result.total_p50 / 1000:.1f} s | {result.total_p95 / 1000:.1f} s "
             f"| {result.tokens_per_second:.1f} |"
         )
 
+    notes = [result for result in results if result.note]
+    if notes:
+        lines += [""]
+        lines += [f"- `{result.model}`: {result.note}" for result in notes]
+
     lines += [
         "",
         "## Composite score",
         "",
-        "One number per model so the choice is reproducible rather than a matter of",
-        "taste. Weights: "
+        "One number per model so the choice is reproducible. Weights: "
         + ", ".join(f"{name} {weight:.0%}" for name, weight in WEIGHTS.items())
         + ".",
         "",
-        "Speed is a quarter of the score rather than a tie-breaker. A model that is",
+        "Speed is a quarter of the score rather than a tie-breaker: a model that is",
         "accurate and takes half a minute to begin answering is not the better choice",
         "for something a reader is waiting on.",
         "",
@@ -494,7 +649,10 @@ def as_markdown(results: Sequence[ModelResult], *, index: SearchIndex) -> str:
         "|---|---:|---:|",
     ]
     for result in sorted(results, key=composite, reverse=True):
-        lines.append(f"| `{result.model}` | {composite(result):.3f} | {speed_score(result):.3f} |")
+        suffix = "" if result.comparable else " *(subset, not comparable)*"
+        lines.append(
+            f"| `{result.model}`{suffix} | {composite(result):.3f} | {speed_score(result):.3f} |"
+        )
 
     if chosen is not None:
         lines += [
@@ -503,10 +661,10 @@ def as_markdown(results: Sequence[ModelResult], *, index: SearchIndex) -> str:
             "",
             f"**`{chosen.model}`** is the configured default, on the numbers above.",
             "",
-            "Change it by setting `GENERATION_MODEL` in `.env`. Every model compared here",
-            "is a roughly four-billion-parameter instruction model at four-bit",
-            "quantisation; a larger model is a supported configuration rather than the",
-            "default, because the default has to work on an ordinary machine.",
+            "Change it by setting `GENERATION_MODEL` in `.env`. Every model compared here is",
+            "a roughly four-billion-parameter instruction model at four-bit quantisation; a",
+            "larger model is a supported configuration rather than the default, because the",
+            "default has to work on an ordinary machine.",
         ]
 
     failures = sum(result.failures for result in results)
@@ -516,7 +674,39 @@ def as_markdown(results: Sequence[ModelResult], *, index: SearchIndex) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(settings: Settings, models: list[str] | None = None) -> int:
+def write_reports(results: Sequence[ModelResult], *, chunks_indexed: int, questions: int) -> None:
+    """Write the published report and aggregate scores from what has been run."""
+    chosen = choose_default(results)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_JSON.write_text(
+        json.dumps(
+            {
+                "measured_at": datetime.now(UTC).isoformat(),
+                "chunks_indexed": chunks_indexed,
+                "questions": questions,
+                "weights": WEIGHTS,
+                "models": [result.to_dict() for result in results],
+                "chosen": chosen.model if chosen else None,
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
+    RESULTS_MARKDOWN.write_text(
+        as_markdown(results, chunks_indexed=chunks_indexed), encoding="utf-8"
+    )
+
+
+def main(
+    settings: Settings,
+    models: list[str] | None = None,
+    *,
+    force: bool = False,
+    limit: int | None = None,
+    subset: str | None = None,
+    notes: dict[str, str] | None = None,
+) -> int:
     """Run the answer evaluation for each candidate model and write the results."""
     try:
         index = SearchIndex.load(settings.index_path)
@@ -532,8 +722,14 @@ def main(settings: Settings, models: list[str] | None = None) -> int:
         )
         return 1
 
-    questions = load_questions()
+    try:
+        questions, selection = select(load_questions(), limit=limit, subset=subset)
+    except (FileNotFoundError, KeyError) as error:
+        print(f"Cannot evaluate answers: {error}")
+        return 1
+
     candidates = models or [settings.generation_model]
+    labels = notes or {}
 
     async def run() -> list[ModelResult]:
         client = OllamaClient(
@@ -546,48 +742,49 @@ def main(settings: Settings, models: list[str] | None = None) -> int:
         try:
             collected: list[ModelResult] = []
             for model in candidates:
-                print(f"Evaluating {model} over {len(questions)} questions...")
-                collected.append(
-                    await evaluate_model(index, client, model, questions, key_facts, settings)
+                existing = None if force else read_scorecard(model, selection)
+                if existing is not None:
+                    print(f"Reusing the scorecard for {model} ({selection}); --force re-runs it.")
+                    existing.note = labels.get(model, existing.note)
+                    collected.append(existing)
+                    continue
+
+                print(f"Evaluating {model} over {len(questions)} questions ({selection})...")
+                result = await evaluate_model(
+                    index,
+                    client,
+                    model,
+                    questions,
+                    key_facts,
+                    settings,
+                    selection=selection,
+                    note=labels.get(model, ""),
+                )
+                collected.append(result)
+                print(f"  wrote {write_scorecard(result, settings=settings)}")
+                write_reports(
+                    collected, chunks_indexed=index.metadata.chunk_count, questions=len(questions)
                 )
             return collected
         finally:
             await client.close()
 
     results = asyncio.run(run())
-
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    RESULTS_JSON.write_text(
-        json.dumps(
-            {
-                "measured_at": datetime.now(UTC).isoformat(),
-                "chunks_indexed": index.metadata.chunk_count,
-                "questions": len(questions),
-                "weights": WEIGHTS,
-                "models": [result.to_dict() for result in results],
-                "chosen": choose_default(results).model if results else None,
-                "items": {
-                    result.model: [item.__dict__ for item in result.items] for result in results
-                },
-            },
-            ensure_ascii=False,
-            indent=1,
-        ),
-        encoding="utf-8",
-    )
-    RESULTS_MARKDOWN.write_text(as_markdown(results, index=index), encoding="utf-8")
+    write_reports(results, chunks_indexed=index.metadata.chunk_count, questions=len(questions))
 
     print()
     for result in results:
         print(
-            f"  {result.model:14} facts {result.fact_recall:.3f}  "
+            f"  {result.model:28} facts {result.fact_recall:.3f}  "
             f"citations {result.citation_validity:.3f}  "
             f"language {result.language_match:.3f}  "
             f"behaviour {result.behaviour_accuracy:.3f}  "
-            f"first token p95 {result.first_token_p95 / 1000:.1f}s  "
+            f"prompt {result.prompt_tokens_p50:.0f} tok / {result.prompt_ms_p50 / 1000:.1f}s  "
+            f"first token p50 {result.first_token_p50 / 1000:.1f}s  "
             f"composite {composite(result):.3f}"
         )
-    if results:
-        print(f"\nBest on the numbers: {choose_default(results).model}")
+    chosen = choose_default(results)
+    if chosen is not None:
+        print(f"\nBest on the numbers: {chosen.model}")
     print(f"Written to {RESULTS_MARKDOWN}")
     return 0

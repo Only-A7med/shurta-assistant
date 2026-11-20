@@ -26,6 +26,7 @@ from shurta.api.state import ApplicationState, WarmState
 from shurta.chunking import chunk_corpus
 from shurta.config import Settings
 from shurta.models import Corpus, Language
+from shurta.prompting import trim_passage
 from shurta.retrieval.hybrid import HybridRetriever
 from shurta.retrieval.store import SearchIndex
 
@@ -38,13 +39,25 @@ def _build_index(corpus: Corpus, client: FakeModelClient, directory: Path) -> Se
     return index
 
 
-def _pipeline(corpus: Corpus, client: FakeModelClient, directory: Path, *, top_k: int = 4):
+def _pipeline(
+    corpus: Corpus,
+    client: FakeModelClient,
+    directory: Path,
+    *,
+    top_k: int = 4,
+    max_passage_chars: int | None = None,
+):
     index = _build_index(corpus, client, directory)
 
     async def embed(query: str) -> list[float]:
         return (await client.embed([query]))[0]
 
-    return AnswerPipeline(HybridRetriever(index, embed), client, top_k=top_k)
+    return AnswerPipeline(
+        HybridRetriever(index, embed),
+        client,
+        top_k=top_k,
+        max_passage_chars=max_passage_chars,
+    )
 
 
 @pytest.fixture
@@ -99,6 +112,27 @@ class TestEventFraming:
 
     def test_a_comment_keeps_the_connection_alive_without_being_an_event(self) -> None:
         assert comment("keep-alive") == ": keep-alive\n\n"
+
+
+class TestTrimPassage:
+    def test_a_short_passage_is_left_alone(self) -> None:
+        passage = "Fees\n- Resident: AED 200"
+        assert trim_passage(passage, 500) == passage
+
+    def test_no_cap_leaves_everything(self) -> None:
+        text = "x" * 5000
+        assert trim_passage(text, None) == text
+
+    def test_a_long_passage_is_cut_at_a_line_break(self) -> None:
+        text = "Fees\n- Resident: AED 200\n- Visitor: AED 300\n- Company: AED 500"
+        trimmed = trim_passage(text, 40)
+        assert trimmed.endswith("…")
+        assert "- Resident: AED 200" in trimmed
+        assert "AED 500" not in trimmed
+
+    def test_a_passage_with_no_break_is_still_capped(self) -> None:
+        trimmed = trim_passage("x" * 300, 100)
+        assert len(trimmed) <= 102
 
 
 class TestPipeline:
@@ -158,6 +192,33 @@ class TestPipeline:
         pipeline = _pipeline(corpus, fake_client, tmp_path)
         await pipeline.answer("ما هي رسوم شهادة حسن السيرة والسلوك؟")
         assert "أجب بالعربية" in fake_client.prompts[0]
+
+    async def test_the_system_rules_are_byte_identical_between_questions(
+        self, corpus: Corpus, fake_client: FakeModelClient, tmp_path: Path
+    ) -> None:
+        """An unchanged prefix is what lets the provider reuse its prompt cache."""
+        pipeline = _pipeline(corpus, fake_client, tmp_path)
+        await pipeline.answer("What is the fee for a good conduct certificate?")
+        await pipeline.answer("How long does a good conduct certificate take?")
+
+        first, second = fake_client.prompts
+        prefix = first[: first.index("Passages:")]
+        assert prefix == second[: second.index("Passages:")]
+        assert prefix.startswith("You answer questions")
+
+    async def test_a_passage_cap_shortens_the_prompt_without_renumbering_it(
+        self, corpus: Corpus, tmp_path: Path
+    ) -> None:
+        """Prompt length is most of the wait, so the cap has to actually bite."""
+        whole = FakeModelClient()
+        capped = FakeModelClient()
+        question = "What documents do I need for a good conduct certificate?"
+        await _pipeline(corpus, whole, tmp_path).answer(question)
+        await _pipeline(corpus, capped, tmp_path, max_passage_chars=120).answer(question)
+
+        assert len(capped.prompts[0]) < len(whole.prompts[0])
+        assert "[1]" in capped.prompts[0]
+        assert "[2]" in capped.prompts[0]
 
     async def test_citations_are_numbered_from_one_and_carry_a_source(
         self, corpus: Corpus, fake_client: FakeModelClient, tmp_path: Path

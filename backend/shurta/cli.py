@@ -53,6 +53,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="generation model to evaluate; repeat to compare several (answers only)",
     )
+    evaluate.add_argument(
+        "--force",
+        action="store_true",
+        help="re-run models that already have a scorecard (answers only)",
+    )
+    evaluate.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="run only the first N questions of each group (answers only)",
+    )
+    evaluate.add_argument(
+        "--subset",
+        default=None,
+        help=(
+            "run only the questions named in a subset file: a path, or a name "
+            "under eval/subsets (answers only)"
+        ),
+    )
+    evaluate.add_argument(
+        "--note",
+        action="append",
+        default=None,
+        metavar="MODEL=TEXT",
+        help="a note to print beside one model in the report (answers only)",
+    )
 
     commands.add_parser(
         "doctor",
@@ -120,7 +146,18 @@ def _doctor(settings: Settings) -> int:
     return run_doctor(settings)
 
 
-def _evaluate(settings: Settings, target: str, models: Sequence[str] | None) -> int:
+def _notes(pairs: Sequence[str] | None) -> dict[str, str]:
+    """``MODEL=TEXT`` arguments as a mapping."""
+    notes: dict[str, str] = {}
+    for pair in pairs or ():
+        model, _, text = pair.partition("=")
+        if text:
+            notes[model.strip()] = text.strip()
+    return notes
+
+
+def _evaluate(settings: Settings, arguments: argparse.Namespace) -> int:
+    target = arguments.target
     if target == "prepare":
         from shurta.evaluation.prepare import main as prepare_main
 
@@ -133,7 +170,14 @@ def _evaluate(settings: Settings, target: str, models: Sequence[str] | None) -> 
 
     from shurta.evaluation.answers import main as answers_main
 
-    return answers_main(settings, models=list(models) if models else None)
+    return answers_main(
+        settings,
+        models=list(arguments.model) if arguments.model else None,
+        force=arguments.force,
+        limit=arguments.limit,
+        subset=arguments.subset,
+        notes=_notes(arguments.note),
+    )
 
 
 def _serve(settings: Settings, host: str, port: int, reload: bool) -> int:
@@ -159,7 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command == "index":
         return _index(settings)
     if arguments.command == "eval":
-        return _evaluate(settings, arguments.target, arguments.model)
+        return _evaluate(settings, arguments)
     if arguments.command == "doctor":
         return _doctor(settings)
     if arguments.command == "serve":

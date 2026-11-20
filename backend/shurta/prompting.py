@@ -1,25 +1,20 @@
 """Building the prompt, and the fixed responses that need no model.
 
 The prompt has one job: get a small model to restate retrieved text accurately,
-in the reader's language, with a citation number against each claim — and to say
+in the reader's language, with a citation number against each claim, and to say
 it does not know rather than fill a gap.
 
-Three things in here are shaped by the model being small and running on a
-processor rather than a graphics card.
+Three things are shaped by the model being small:
 
-The instructions are short and ordered by importance. A four-billion-parameter
-model follows the first few lines of a long instruction block and drifts from
-the rest, so the rules that matter most — only use the context, answer in the
-reader's language, cite — come first, and there are few of them.
+* the rules are few and ordered by importance, because a model this size follows
+  the first instructions and drifts from the rest;
+* the passages are numbered, so citing is a copying task rather than an
+  invitation to invent;
+* the language instruction is stated twice, or an Arabic question gets an English
+  answer whenever the retrieved passages are English.
 
-The passages are numbered and the model is asked for those numbers. Asking for
-a citation it has to invent would invite invention; asking it to copy a number
-that is in front of it is a copying task, which is what these models are
-reliable at.
-
-The language instruction is stated twice, once at the top and once immediately
-before the answer. A model this size will otherwise answer an Arabic question in
-English whenever the retrieved passages happen to be in English.
+The system block comes first and is byte-identical between requests in the same
+language, so Ollama can reuse its cached prompt prefix.
 """
 
 from __future__ import annotations
@@ -102,10 +97,30 @@ def citations_for(retrieved: tuple[Retrieved, ...], language: Language) -> list[
     ]
 
 
+def trim_passage(text: str, limit: int | None) -> str:
+    """One passage capped to ``limit`` characters, cut at a line or word break.
+
+    Prompt length is most of the time to first token on processor-only
+    inference, and the tail of a long fee or document list is rarely what the
+    question was about.
+    """
+    if limit is None or len(text) <= limit:
+        return text
+    head = text[:limit]
+    for separator in ("\n", " "):
+        cut = head.rfind(separator)
+        if cut > limit // 2:
+            head = head[:cut]
+            break
+    return head.rstrip() + "\n…"
+
+
 def build_prompt(
     question: str,
     retrieved: tuple[Retrieved, ...],
     language: Language,
+    *,
+    max_passage_chars: int | None = None,
 ) -> str:
     """Assemble the prompt for one question."""
     arabic = language is Language.AR
@@ -114,7 +129,8 @@ def build_prompt(
     )
 
     passages = "\n\n".join(
-        f"[{position + 1}] {item.chunk.text}" for position, item in enumerate(retrieved)
+        f"[{position + 1}] {trim_passage(item.chunk.text, max_passage_chars)}"
+        for position, item in enumerate(retrieved)
     )
 
     return "\n\n".join(

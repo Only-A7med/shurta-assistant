@@ -1,16 +1,12 @@
 """Tests for the evaluation harness, and an end-to-end run over the fixtures.
 
-Two things are tested here.
+The scoring is tested because the default model was chosen on it: a citation
+check that accepts an invented reference, or a fact comparison that misses an
+Arabic-Indic figure, would quietly change that choice.
 
-The first is the scoring itself. The harness is the basis on which the default
-model was chosen, so a mistake in it would be a mistake in that choice —
-a citation check that accepts an invented reference, or a fact comparison that
-misses an Arabic-Indic figure, would quietly change the conclusion.
-
-The second is an end-to-end evaluation over the invented fixture catalogue,
-using a stand-in model. It exercises exactly the path the real evaluation takes
-— chunk, index, retrieve, score — with no provider running, which is what lets
-continuous integration check the harness still works on every change.
+The end-to-end run uses the invented fixture catalogue and a stand-in model, so
+continuous integration exercises the whole path — chunk, index, retrieve,
+score — with no provider running.
 """
 
 from __future__ import annotations
@@ -23,16 +19,24 @@ from conftest import FakeModelClient
 
 from shurta.answering import AnswerPipeline, ResponseKind
 from shurta.chunking import chunk_corpus
-from shurta.config import REPOSITORY_ROOT
+from shurta.config import REPOSITORY_ROOT, Settings
 from shurta.evaluation.answers import (
+    FULL_SELECTION,
+    ItemResult,
     ModelResult,
     check_citations,
     check_declines,
     check_language,
+    choose_default,
     composite,
     count_facts,
+    first_per_group,
+    read_scorecard,
     score_question,
+    select,
     speed_score,
+    subset_file,
+    write_scorecard,
 )
 from shurta.evaluation.dataset import Behaviour, KeyFacts, Question, load_questions, summarise
 from shurta.evaluation.facts import (
@@ -216,10 +220,33 @@ class TestFactCounting:
         assert count_facts("anything at all", KeyFacts(id="x")) == (0, 0)
 
 
+def item(**overrides: object) -> ItemResult:
+    """One scored item, with everything not under test held fixed."""
+    defaults: dict[str, object] = {
+        "id": "x",
+        "language": "en",
+        "group": "en",
+        "behaviour": "answer",
+        "kind": "answer",
+        "behaviour_correct": True,
+        "language_correct": True,
+        "citations_valid": True,
+        "cited_count": 1,
+        "facts_expected": 2,
+        "facts_found": 2,
+        "first_token_ms": 5000.0,
+        "total_ms": 8000.0,
+        "tokens_per_second": 9.0,
+        "used_model": True,
+        "prompt_tokens": 900,
+        "prompt_ms": 4200.0,
+    }
+    defaults.update(overrides)
+    return ItemResult(**defaults)  # type: ignore[arg-type]
+
+
 class TestComposite:
     def _result(self, **overrides: object) -> ModelResult:
-        from shurta.evaluation.answers import ItemResult
-
         defaults: dict[str, object] = {
             "id": "x",
             "language": "en",
@@ -262,6 +289,150 @@ class TestComposite:
         assert 0.0 <= result.fact_recall <= 1.0
         assert 0.0 <= result.citation_validity <= 1.0
         assert 0.0 <= composite(result) <= 1.0
+
+
+class TestPromptStatistics:
+    def test_the_median_prompt_length_is_reported(self) -> None:
+        """The latency work is aimed at prompt length, so it has to be measured."""
+        result = ModelResult(
+            model="test",
+            items=[
+                item(prompt_tokens=600, prompt_ms=3000.0),
+                item(prompt_tokens=900, prompt_ms=4000.0),
+                item(prompt_tokens=1200, prompt_ms=9000.0),
+            ],
+        )
+        assert result.prompt_tokens_p50 == 900
+        assert result.prompt_ms_p50 == 4000.0
+
+    def test_items_that_never_reached_the_model_are_left_out(self) -> None:
+        result = ModelResult(
+            model="test",
+            items=[item(prompt_tokens=900), item(used_model=False, prompt_tokens=0)],
+        )
+        assert result.prompt_tokens_p50 == 900
+
+
+# --------------------------------------------------------------------------
+# Choosing which questions to run, and resuming a long run
+# --------------------------------------------------------------------------
+class TestSelection:
+    @pytest.fixture
+    def questions(self) -> list[Question]:
+        return load_questions()
+
+    def test_everything_is_selected_by_default(self, questions: list[Question]) -> None:
+        selected, name = select(questions)
+        assert len(selected) == len(questions)
+        assert name == FULL_SELECTION
+
+    def test_a_limit_takes_the_first_items_of_each_group(self, questions: list[Question]) -> None:
+        selected, name = select(questions, limit=2)
+        assert name == "limit:2"
+        groups: dict[str, int] = {}
+        for question in selected:
+            key = question.dialect or question.language.value
+            groups[key] = groups.get(key, 0) + 1
+        assert set(groups.values()) == {2}
+        assert selected[0].id == questions[0].id
+
+    def test_a_limit_wider_than_a_group_keeps_what_there_is(
+        self, questions: list[Question]
+    ) -> None:
+        assert len(first_per_group(questions, 10_000)) == len(questions)
+
+    def test_the_committed_latency_subset_is_selectable(self, questions: list[Question]) -> None:
+        """Every change in the latency work is measured on this same subset."""
+        selected, name = select(questions, subset="latency")
+        assert name == "subset:latency"
+        assert len(selected) == 20
+        groups = {question.dialect or question.language.value for question in selected}
+        assert groups == {"en", "ar", "gulf", "code_switched"}
+
+    def test_a_subset_name_resolves_under_the_evaluation_directory(self) -> None:
+        assert subset_file("latency").name == "latency.txt"
+        assert subset_file("eval/subsets/latency.txt").name == "latency.txt"
+
+    def test_an_unknown_question_in_a_subset_is_refused(
+        self, questions: list[Question], tmp_path: Path
+    ) -> None:
+        bad = tmp_path / "bad.txt"
+        bad.write_text("en-001\nno-such-question\n", encoding="utf-8")
+        with pytest.raises(KeyError, match="no-such-question"):
+            select(questions, subset=str(bad))
+
+
+class TestScorecards:
+    """A long run must not be all-or-nothing: the first attempt was lost that way."""
+
+    @pytest.fixture
+    def scorecards(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        import shurta.evaluation.answers as answers
+
+        monkeypatch.setattr(answers, "SCORECARD_DIR", tmp_path / "scorecards")
+        return tmp_path / "scorecards"
+
+    def test_a_scorecard_is_written_and_read_back(
+        self, scorecards: Path, settings: Settings
+    ) -> None:
+        result = ModelResult(model="gemma3:4b", items=[item(), item(facts_found=1)])
+        written = write_scorecard(result, settings=settings)
+        assert written.parent == scorecards
+
+        again = read_scorecard("gemma3:4b")
+        assert again is not None
+        assert len(again.items) == 2
+        assert again.fact_recall == result.fact_recall
+        assert again.prompt_tokens_p50 == result.prompt_tokens_p50
+
+    def test_a_subset_scorecard_does_not_stand_in_for_a_full_run(
+        self, scorecards: Path, settings: Settings
+    ) -> None:
+        write_scorecard(
+            ModelResult(model="gemma3:4b", items=[item()], selection="subset:latency"),
+            settings=settings,
+        )
+        assert read_scorecard("gemma3:4b", "subset:latency") is not None
+        assert read_scorecard("gemma3:4b", FULL_SELECTION) is None
+
+    def test_nothing_written_reads_back_as_nothing(self, scorecards: Path) -> None:
+        assert read_scorecard("never-run") is None
+
+    def test_a_damaged_scorecard_is_ignored_rather_than_raised(
+        self, scorecards: Path, settings: Settings
+    ) -> None:
+        """A half-written file should cost a re-run, not the whole command."""
+        write_scorecard(ModelResult(model="gemma3:4b", items=[item()]), settings=settings)
+        from shurta.evaluation.answers import scorecard_path
+
+        scorecard_path("gemma3:4b").write_text("{ not json", encoding="utf-8")
+        assert read_scorecard("gemma3:4b") is None
+
+    def test_a_model_name_with_a_colon_becomes_a_usable_file_name(
+        self, scorecards: Path, settings: Settings
+    ) -> None:
+        written = write_scorecard(
+            ModelResult(model="qwen3:4b-instruct-2507-q4_K_M", items=[item()]),
+            settings=settings,
+        )
+        assert ":" not in written.name
+
+
+class TestChoosingTheDefault:
+    def test_a_subset_run_cannot_win_the_comparison(self) -> None:
+        """A model measured on 20 questions is not comparable with one on 120."""
+        full = ModelResult(model="full", items=[item(first_token_ms=9000.0)])
+        subset = ModelResult(
+            model="subset", items=[item(first_token_ms=1000.0)], selection="subset:latency"
+        )
+        assert composite(subset) > composite(full)
+        chosen = choose_default([full, subset])
+        assert chosen is not None
+        assert chosen.model == "full"
+
+    def test_nothing_comparable_chooses_nothing(self) -> None:
+        subset = ModelResult(model="subset", items=[item()], selection="subset:latency")
+        assert choose_default([subset]) is None
 
 
 # --------------------------------------------------------------------------
