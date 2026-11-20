@@ -1,12 +1,9 @@
 """The answer pipeline: guard, retrieve, generate, cite.
 
-The whole flow in one place, independent of how it is delivered, so the API and
-the evaluation exercise the same behaviour.
-
-The order matters. The guard runs before retrieval and before any model call, so
-an emergency costs nothing. When nothing retrieved is relevant enough the
-pipeline answers from a fixed response rather than letting a small model work
-from an empty context.
+One flow, independent of how it is delivered, so the API and the evaluation
+exercise the same behaviour. The guard runs before retrieval and before any
+model call; when nothing retrieved is relevant enough, a fixed response is used
+rather than letting a small model work from an empty context.
 """
 
 from __future__ import annotations
@@ -24,6 +21,7 @@ from shurta.prompting import (
     Citation,
     build_prompt,
     citations_for,
+    grouped_for_prompt,
     no_context_response,
     personal_case_response,
 )
@@ -159,15 +157,18 @@ class AnswerPipeline:
                 fixed_text=no_context_response(language),
             )
 
+        # One order for both, so a citation number means the same passage in
+        # the prompt and in the panel the reader sees.
+        passages = grouped_for_prompt(retrieval.chunks)
         return AnswerContext(
             question=question,
             language=language,
             kind=ResponseKind.ANSWER,
-            citations=citations_for(retrieval.chunks, language),
+            citations=citations_for(passages, language),
             retrieval=retrieval,
             prompt=build_prompt(
                 question,
-                retrieval.chunks,
+                passages,
                 language,
                 max_passage_chars=self.max_passage_chars,
             ),
@@ -176,8 +177,7 @@ class AnswerPipeline:
     async def stream(self, context: AnswerContext) -> AsyncIterator[str]:
         """Yield the answer text for a prepared question.
 
-        A fixed response is yielded whole: there is nothing to wait for, and
-        splitting it into fake tokens would only make it arrive later.
+        A fixed response is yielded whole; there is nothing to wait for.
         """
         if not context.needs_model:
             yield context.fixed_text

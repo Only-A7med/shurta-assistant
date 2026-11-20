@@ -1,9 +1,7 @@
 """Tests for the HTTP interface and the answer pipeline behind it.
 
-The model client is a stand-in throughout, so none of this needs Ollama. The
-index is built from the invented fixture catalogue using the stand-in's own
-embeddings, which makes the whole path — question in, cited answer out —
-exercisable in a few milliseconds.
+The model client is a stand-in and the index is built from the fixture
+catalogue, so the whole path runs in milliseconds without Ollama.
 """
 
 from __future__ import annotations

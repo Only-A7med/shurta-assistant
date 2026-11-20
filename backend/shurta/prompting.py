@@ -1,20 +1,13 @@
 """Building the prompt, and the fixed responses that need no model.
 
 The prompt has one job: get a small model to restate retrieved text accurately,
-in the reader's language, with a citation number against each claim, and to say
-it does not know rather than fill a gap.
+in the reader's language, with a citation against each claim.
 
-Three things are shaped by the model being small:
-
-* the rules are few and ordered by importance, because a model this size follows
-  the first instructions and drifts from the rest;
-* the passages are numbered, so citing is a copying task rather than an
-  invitation to invent;
-* the language instruction is stated twice, or an Arabic question gets an English
-  answer whenever the retrieved passages are English.
-
-The system block comes first and is byte-identical between requests in the same
-language, so Ollama can reuse its cached prompt prefix.
+Three things follow from the model being small: few rules, ordered by
+importance; numbered passages, so citing is copying rather than inventing; and
+the language instruction stated twice. The system block comes first and is
+byte-identical between requests in one language, so the provider can reuse its
+cached prompt prefix.
 """
 
 from __future__ import annotations
@@ -77,6 +70,32 @@ _QUESTION_HEADING_EN = "Question:"
 _QUESTION_HEADING_AR = "السؤال:"
 
 
+def grouped_for_prompt(retrieved: tuple[Retrieved, ...]) -> tuple[Retrieved, ...]:
+    """The passages reordered so each service's sections sit together.
+
+    The prompt then names a service once instead of once per section, and the
+    citation numbers follow the same order. Services keep the order in which
+    retrieval first reached them.
+    """
+    order: list[str] = []
+    by_service: dict[str, list[Retrieved]] = {}
+    for item in retrieved:
+        service = item.chunk.service_id
+        if service not in by_service:
+            order.append(service)
+            by_service[service] = []
+        by_service[service].append(item)
+    return tuple(item for service in order for item in by_service[service])
+
+
+def service_name(item: Retrieved, language: Language) -> str:
+    """The retrieved passage's service, named in the reader's language."""
+    chunk = item.chunk
+    if language is Language.AR and chunk.name_ar:
+        return chunk.name_ar
+    return chunk.name_en or chunk.name_ar
+
+
 def citations_for(retrieved: tuple[Retrieved, ...], language: Language) -> list[Citation]:
     """Number the retrieved passages, which is what the answer cites."""
     return [
@@ -115,6 +134,38 @@ def trim_passage(text: str, limit: int | None) -> str:
     return head.rstrip() + "\n…"
 
 
+def section_text(item: Retrieved) -> str:
+    """A passage's section heading and body, without the service header.
+
+    The chunk text repeats both of its service's names and its category so that
+    an Arabic question can retrieve an English passage. In the prompt that is
+    redundant — the service is named once per group, in the reader's language —
+    and every repeated token is paid for in time to first token.
+    """
+    body = item.chunk.text
+    marker = body.find("## ")
+    return body[marker:] if marker != -1 else body
+
+
+def render_passages(
+    retrieved: tuple[Retrieved, ...],
+    language: Language,
+    *,
+    max_passage_chars: int | None = None,
+) -> str:
+    """The numbered passages, grouped under their service's name."""
+    blocks: list[str] = []
+    previous = ""
+    for position, item in enumerate(retrieved, start=1):
+        name = service_name(item, language)
+        heading = f"{name}\n" if name != previous else ""
+        previous = name
+        blocks.append(
+            f"{heading}[{position}] {trim_passage(section_text(item), max_passage_chars)}"
+        )
+    return "\n\n".join(blocks)
+
+
 def build_prompt(
     question: str,
     retrieved: tuple[Retrieved, ...],
@@ -128,10 +179,7 @@ def build_prompt(
         site=OFFICIAL_SITE, phone=NON_EMERGENCY_NUMBER
     )
 
-    passages = "\n\n".join(
-        f"[{position + 1}] {trim_passage(item.chunk.text, max_passage_chars)}"
-        for position, item in enumerate(retrieved)
-    )
+    passages = render_passages(retrieved, language, max_passage_chars=max_passage_chars)
 
     return "\n\n".join(
         [
