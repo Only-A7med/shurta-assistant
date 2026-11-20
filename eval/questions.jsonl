@@ -1,0 +1,120 @@
+{"id": "en-001", "question": "How much does a police clearance certificate cost for a resident?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "en-002", "question": "What is the fee for a police clearance certificate if I apply from outside the country?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "en-003", "question": "How long does it take to get a police clearance certificate?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["processing_time"]}
+{"id": "en-004", "question": "What documents do I need for a police clearance certificate when applying from abroad?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["required_documents"]}
+{"id": "en-005", "question": "Can I apply for a police clearance certificate if my Emirates ID has expired?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["eligibility"]}
+{"id": "en-006", "question": "Where can I apply for a police clearance certificate?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["channels"]}
+{"id": "en-007", "question": "What is a police clearance certificate used for?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["description"]}
+{"id": "en-008", "question": "Is there an extra charge for applying for a police clearance certificate in person?", "language": "en", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "en-009", "question": "How do I pay a traffic fine?", "language": "en", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["channels", "description"]}
+{"id": "en-010", "question": "Can I pay my traffic fines in instalments?", "language": "en", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["description", "eligibility"]}
+{"id": "en-011", "question": "What is the knowledge fee charged on each traffic violation?", "language": "en", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["fees"]}
+{"id": "en-012", "question": "Can I pay traffic fines with a card issued outside the country?", "language": "en", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["eligibility"]}
+{"id": "en-013", "question": "How quickly is a traffic fine payment processed?", "language": "en", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["processing_time"]}
+{"id": "en-014", "question": "What does a traffic clearance certificate cost?", "language": "en", "expected_service_ids": ["traffic-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "en-015", "question": "How long does a traffic clearance certificate take to issue?", "language": "en", "expected_service_ids": ["traffic-clearance-certificate"], "expected_fields": ["processing_time"]}
+{"id": "en-016", "question": "What is the difference between a traffic status certificate and a traffic clearance certificate?", "language": "en", "expected_service_ids": ["traffic-status-certificate", "traffic-clearance-certificate"], "expected_fields": ["description"]}
+{"id": "en-017", "question": "How much is a traffic status certificate?", "language": "en", "expected_service_ids": ["traffic-status-certificate"], "expected_fields": ["fees"]}
+{"id": "en-018", "question": "What is the fee for a To Whom It May Concern certificate?", "language": "en", "expected_service_ids": ["twimc-certificate"], "expected_fields": ["fees"]}
+{"id": "en-019", "question": "How long does a To Whom It May Concern certificate take?", "language": "en", "expected_service_ids": ["twimc-certificate"], "expected_fields": ["processing_time"]}
+{"id": "en-020", "question": "How do I get a To Whom It May Concern certificate for an inmate?", "language": "en", "expected_service_ids": ["twimc-inmate-certificate"], "expected_fields": ["description", "channels"]}
+{"id": "en-021", "question": "What does a To Whom It May Concern certificate for an inmate cost?", "language": "en", "expected_service_ids": ["twimc-inmate-certificate"], "expected_fields": ["fees"]}
+{"id": "en-022", "question": "What documents are needed for a To Whom It May Concern certificate for an inmate?", "language": "en", "expected_service_ids": ["twimc-inmate-certificate"], "expected_fields": ["required_documents"]}
+{"id": "en-023", "question": "How do I report a cybercrime?", "language": "en", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["description", "channels"]}
+{"id": "en-024", "question": "What evidence should I attach when reporting an online crime?", "language": "en", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["required_documents"]}
+{"id": "en-025", "question": "How long does a cybercrime report take to process?", "language": "en", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["processing_time"]}
+{"id": "en-026", "question": "How do I report a lost item?", "language": "en", "expected_service_ids": ["report-lost-item"], "expected_fields": ["description", "channels"]}
+{"id": "en-027", "question": "Is there a fee for reporting a lost item?", "language": "en", "expected_service_ids": ["report-lost-item"], "expected_fields": ["fees"]}
+{"id": "en-028", "question": "How do I file a criminal complaint?", "language": "en", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["description", "channels"]}
+{"id": "en-029", "question": "What documents do I need to file a criminal complaint?", "language": "en", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["required_documents"]}
+{"id": "en-030", "question": "How long does it take to process a criminal complaint?", "language": "en", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["processing_time"]}
+{"id": "en-031", "question": "How do I report a bounced cheque?", "language": "en", "expected_service_ids": ["report-bounced-cheque"], "expected_fields": ["description", "channels"]}
+{"id": "en-032", "question": "What paperwork is required to report a bounced cheque?", "language": "en", "expected_service_ids": ["report-bounced-cheque"], "expected_fields": ["required_documents"]}
+{"id": "en-033", "question": "How can I ask the police to watch my home while I am travelling?", "language": "en", "expected_service_ids": ["smart-home-security"], "expected_fields": ["description", "channels"]}
+{"id": "en-034", "question": "What do I need to provide to register my house for security while I am away?", "language": "en", "expected_service_ids": ["smart-home-security"], "expected_fields": ["required_documents", "eligibility"]}
+{"id": "en-035", "question": "How long does a home security request take to set up?", "language": "en", "expected_service_ids": ["smart-home-security"], "expected_fields": ["processing_time"]}
+{"id": "en-036", "question": "What support is available for tourists?", "language": "en", "expected_service_ids": ["tourist-support"], "expected_fields": ["description"]}
+{"id": "en-037", "question": "How can a worker file a labour complaint?", "language": "en", "expected_service_ids": ["workers-voice-labour-complaint"], "expected_fields": ["description", "channels"]}
+{"id": "en-038", "question": "How long does a labour complaint take to be handled?", "language": "en", "expected_service_ids": ["workers-voice-labour-complaint"], "expected_fields": ["processing_time"]}
+{"id": "en-039", "question": "How much does a permit to change my vehicle colour cost?", "language": "en", "expected_service_ids": ["vehicle-colour-change-permit"], "expected_fields": ["fees"]}
+{"id": "en-040", "question": "What documents are needed to change the colour of a vehicle?", "language": "en", "expected_service_ids": ["vehicle-colour-change-permit"], "expected_fields": ["required_documents"]}
+{"id": "en-041", "question": "How do I report a reckless driver?", "language": "en", "expected_service_ids": ["report-reckless-driver"], "expected_fields": ["description", "channels"]}
+{"id": "en-042", "question": "How do I report a car blocking my driveway?", "language": "en", "expected_service_ids": ["report-vehicle-obstruction"], "expected_fields": ["description", "channels"]}
+{"id": "en-043", "question": "How do I check the status of an application I submitted?", "language": "en", "expected_service_ids": ["application-status"], "expected_fields": ["description", "channels"]}
+{"id": "en-044", "question": "How do I arrange a permit to visit a detainee?", "language": "en", "expected_service_ids": ["detainee-visit-permit"], "expected_fields": ["description", "channels"]}
+{"id": "en-045", "question": "How do I verify that a document issued to me is genuine?", "language": "en", "expected_service_ids": ["document-verification"], "expected_fields": ["description", "channels"]}
+{"id": "ar-001", "question": "كم تبلغ رسوم شهادة بحث الحالة الجنائية للمقيم؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-002", "question": "ما هي رسوم شهادة بحث الحالة الجنائية عند التقديم من خارج الدولة؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-003", "question": "كم تستغرق مدة إصدار شهادة بحث الحالة الجنائية؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["processing_time"]}
+{"id": "ar-004", "question": "ما المستندات المطلوبة لشهادة بحث الحالة الجنائية عند التقديم من خارج الدولة؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["required_documents"]}
+{"id": "ar-005", "question": "هل يمكنني طلب شهادة بحث الحالة الجنائية إذا كانت هويتي الإماراتية منتهية الصلاحية؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["eligibility"]}
+{"id": "ar-006", "question": "من أين أستطيع تقديم طلب شهادة بحث الحالة الجنائية؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["channels"]}
+{"id": "ar-007", "question": "ما الغرض من شهادة بحث الحالة الجنائية؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["description"]}
+{"id": "ar-008", "question": "هل هناك رسوم إضافية إذا قدمت طلب الشهادة الجنائية شخصياً في المركز؟", "language": "ar", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-009", "question": "كيف أدفع المخالفات المرورية؟", "language": "ar", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["channels", "description"]}
+{"id": "ar-010", "question": "هل يمكنني تقسيط المخالفات المرورية؟", "language": "ar", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["description", "eligibility"]}
+{"id": "ar-011", "question": "كم تبلغ رسوم المعرفة على كل مخالفة مرورية؟", "language": "ar", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["fees"]}
+{"id": "ar-012", "question": "هل أستطيع دفع المخالفات ببطاقة صادرة من خارج الدولة؟", "language": "ar", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["eligibility"]}
+{"id": "ar-013", "question": "كم تستغرق عملية دفع المخالفة المرورية؟", "language": "ar", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["processing_time"]}
+{"id": "ar-014", "question": "ما هي رسوم شهادة براءة الذمة من المخالفات المرورية؟", "language": "ar", "expected_service_ids": ["traffic-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-015", "question": "كم تستغرق مدة إصدار شهادة براءة الذمة المرورية؟", "language": "ar", "expected_service_ids": ["traffic-clearance-certificate"], "expected_fields": ["processing_time"]}
+{"id": "ar-016", "question": "ما الفرق بين شهادة بحث الحالة المرورية وشهادة براءة الذمة المرورية؟", "language": "ar", "expected_service_ids": ["traffic-status-certificate", "traffic-clearance-certificate"], "expected_fields": ["description"]}
+{"id": "ar-017", "question": "كم رسوم شهادة بحث الحالة المرورية؟", "language": "ar", "expected_service_ids": ["traffic-status-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-018", "question": "ما هي رسوم شهادة لمن يهمه الأمر؟", "language": "ar", "expected_service_ids": ["twimc-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-019", "question": "كم تستغرق مدة إصدار شهادة لمن يهمه الأمر؟", "language": "ar", "expected_service_ids": ["twimc-certificate"], "expected_fields": ["processing_time"]}
+{"id": "ar-020", "question": "كيف أحصل على شهادة لمن يهمه الأمر لأحد النزلاء؟", "language": "ar", "expected_service_ids": ["twimc-inmate-certificate"], "expected_fields": ["description", "channels"]}
+{"id": "ar-021", "question": "كم تبلغ رسوم شهادة لمن يهمه الأمر للنزلاء؟", "language": "ar", "expected_service_ids": ["twimc-inmate-certificate"], "expected_fields": ["fees"]}
+{"id": "ar-022", "question": "ما المستندات المطلوبة لشهادة لمن يهمه الأمر للنزلاء؟", "language": "ar", "expected_service_ids": ["twimc-inmate-certificate"], "expected_fields": ["required_documents"]}
+{"id": "ar-023", "question": "كيف أبلّغ عن جريمة إلكترونية؟", "language": "ar", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["description", "channels"]}
+{"id": "ar-024", "question": "ما الأدلة التي يجب إرفاقها عند الإبلاغ عن جريمة إلكترونية؟", "language": "ar", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["required_documents"]}
+{"id": "ar-025", "question": "كم تستغرق معالجة بلاغ الجريمة الإلكترونية؟", "language": "ar", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["processing_time"]}
+{"id": "ar-026", "question": "كيف أقدّم بلاغاً عن شيء مفقود؟", "language": "ar", "expected_service_ids": ["report-lost-item"], "expected_fields": ["description", "channels"]}
+{"id": "ar-027", "question": "هل توجد رسوم على تقديم بلاغ مفقودات؟", "language": "ar", "expected_service_ids": ["report-lost-item"], "expected_fields": ["fees"]}
+{"id": "ar-028", "question": "كيف أفتح شكوى جنائية؟", "language": "ar", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["description", "channels"]}
+{"id": "ar-029", "question": "ما المستندات المطلوبة لفتح شكوى جنائية؟", "language": "ar", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["required_documents"]}
+{"id": "ar-030", "question": "كم تستغرق معالجة الشكوى الجنائية؟", "language": "ar", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["processing_time"]}
+{"id": "ar-031", "question": "كيف أبلّغ عن شيك مرتجع؟", "language": "ar", "expected_service_ids": ["report-bounced-cheque"], "expected_fields": ["description", "channels"]}
+{"id": "ar-032", "question": "ما المستندات المطلوبة للإبلاغ عن شيك مرتجع؟", "language": "ar", "expected_service_ids": ["report-bounced-cheque"], "expected_fields": ["required_documents"]}
+{"id": "ar-033", "question": "كيف أطلب تأمين منزلي أثناء السفر؟", "language": "ar", "expected_service_ids": ["smart-home-security"], "expected_fields": ["description", "channels"]}
+{"id": "ar-034", "question": "ما الذي يجب تقديمه لتسجيل المنزل في خدمة الأمن أثناء الغياب؟", "language": "ar", "expected_service_ids": ["smart-home-security"], "expected_fields": ["required_documents", "eligibility"]}
+{"id": "ar-035", "question": "كم تستغرق خدمة أمن المساكن الذكي؟", "language": "ar", "expected_service_ids": ["smart-home-security"], "expected_fields": ["processing_time"]}
+{"id": "ar-036", "question": "ما هو الدعم المتاح للسياح؟", "language": "ar", "expected_service_ids": ["tourist-support"], "expected_fields": ["description"]}
+{"id": "ar-037", "question": "كيف يقدّم العامل شكوى عمالية؟", "language": "ar", "expected_service_ids": ["workers-voice-labour-complaint"], "expected_fields": ["description", "channels"]}
+{"id": "ar-038", "question": "كم تستغرق معالجة الشكوى العمالية؟", "language": "ar", "expected_service_ids": ["workers-voice-labour-complaint"], "expected_fields": ["processing_time"]}
+{"id": "ar-039", "question": "كم تبلغ رسوم تصريح تغيير لون المركبة؟", "language": "ar", "expected_service_ids": ["vehicle-colour-change-permit"], "expected_fields": ["fees"]}
+{"id": "ar-040", "question": "ما المستندات المطلوبة لتغيير لون المركبة؟", "language": "ar", "expected_service_ids": ["vehicle-colour-change-permit"], "expected_fields": ["required_documents"]}
+{"id": "ar-041", "question": "كيف أبلّغ عن سائق غير مسؤول؟", "language": "ar", "expected_service_ids": ["report-reckless-driver"], "expected_fields": ["description", "channels"]}
+{"id": "ar-042", "question": "كيف أبلّغ عن مركبة تعرقل الطريق؟", "language": "ar", "expected_service_ids": ["report-vehicle-obstruction"], "expected_fields": ["description", "channels"]}
+{"id": "ar-043", "question": "كيف أستعلم عن حالة طلب قدّمته؟", "language": "ar", "expected_service_ids": ["application-status"], "expected_fields": ["description", "channels"]}
+{"id": "ar-044", "question": "كيف أحصل على تصريح زيارة موقوف؟", "language": "ar", "expected_service_ids": ["detainee-visit-permit"], "expected_fields": ["description", "channels"]}
+{"id": "ar-045", "question": "كيف أتحقق من صحة مستند صادر لي؟", "language": "ar", "expected_service_ids": ["document-verification"], "expected_fields": ["description", "channels"]}
+{"id": "dia-001", "question": "وين أسدد المخالفات المرورية؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["channels", "description"]}
+{"id": "dia-002", "question": "كم يبيلها وقت شهادة حسن السيرة؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["processing_time"]}
+{"id": "dia-003", "question": "شو الأوراق اللي أبيها لشهادة بحث الحالة الجنائية من برا الدولة؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["required_documents"]}
+{"id": "dia-004", "question": "أبغى أبلغ عن واحد سرق حسابي بالإنستغرام، شو أسوي؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["report-cybercrime"], "expected_fields": ["description", "channels"]}
+{"id": "dia-005", "question": "بكم تطلع شهادة لمن يهمه الأمر؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["twimc-certificate"], "expected_fields": ["fees"]}
+{"id": "dia-006", "question": "ابغى أسوي police clearance certificate، كم الرسوم للمقيم؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["police-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "dia-007", "question": "كيف أقدر أدفع traffic fines أونلاين؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["traffic-fines-inquiry-and-payment"], "expected_fields": ["channels", "description"]}
+{"id": "dia-008", "question": "I need شهادة براءة ذمة مرورية, how much is it?", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["traffic-clearance-certificate"], "expected_fields": ["fees"]}
+{"id": "dia-009", "question": "أبي أطلب home security أثناء السفر، شو المستندات؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["smart-home-security"], "expected_fields": ["required_documents", "eligibility"]}
+{"id": "dia-010", "question": "وين أروح لو بغيت أفتح criminal complaint؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["description", "channels"]}
+{"id": "oos-001", "question": "How do I renew my passport?", "language": "en", "expected_behaviour": "out_of_scope", "note": "Immigration, not a police service in this catalogue"}
+{"id": "oos-002", "question": "What is the weather in Dubai tomorrow?", "language": "en", "expected_behaviour": "out_of_scope"}
+{"id": "oos-003", "question": "كيف أستخرج رخصة قيادة جديدة؟", "language": "ar", "expected_behaviour": "out_of_scope", "note": "Issued by the roads authority, not covered by this catalogue"}
+{"id": "oos-004", "question": "ما هي أسعار العقارات في دبي؟", "language": "ar", "expected_behaviour": "out_of_scope"}
+{"id": "oos-005", "question": "Can you write me a poem about the desert?", "language": "en", "expected_behaviour": "out_of_scope", "note": "Not a service question at all"}
+{"id": "oos-006", "question": "كم عدد سكان دبي؟", "language": "ar", "expected_behaviour": "out_of_scope"}
+{"id": "per-001", "question": "What is the status of my traffic fine?", "language": "en", "expected_behaviour": "refuse", "note": "Needs the applicant's own record, which no published information holds"}
+{"id": "per-002", "question": "How much do I personally owe in fines right now?", "language": "en", "expected_behaviour": "refuse"}
+{"id": "per-003", "question": "Has my police clearance certificate been issued yet?", "language": "en", "expected_behaviour": "refuse"}
+{"id": "per-004", "question": "ما هي حالة مخالفتي المرورية؟", "language": "ar", "expected_behaviour": "refuse"}
+{"id": "per-005", "question": "كم المبلغ المستحق علي من المخالفات؟", "language": "ar", "expected_behaviour": "refuse"}
+{"id": "per-006", "question": "هل صدرت شهادتي الجنائية؟", "language": "ar", "expected_behaviour": "refuse"}
+{"id": "per-007", "question": "Can you tell me if there is a travel ban on my name?", "language": "en", "expected_behaviour": "refuse"}
+{"id": "eme-001", "question": "Someone is breaking into my house right now", "language": "en", "expected_behaviour": "emergency"}
+{"id": "eme-002", "question": "There has been a serious accident and someone is injured", "language": "en", "expected_behaviour": "emergency"}
+{"id": "eme-003", "question": "Help, there is a fire in my building", "language": "en", "expected_behaviour": "emergency"}
+{"id": "eme-004", "question": "النجدة، هناك شخص يحاول دخول منزلي الآن", "language": "ar", "expected_behaviour": "emergency"}
+{"id": "eme-005", "question": "وقع حادث خطير وهناك مصاب، ماذا أفعل؟", "language": "ar", "expected_behaviour": "emergency"}
+{"id": "eme-006", "question": "حريق في المبنى، أرجو المساعدة فوراً", "language": "ar", "expected_behaviour": "emergency"}
+{"id": "eme-007", "question": "I need an ambulance immediately", "language": "en", "expected_behaviour": "emergency"}

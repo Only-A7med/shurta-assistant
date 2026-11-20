@@ -39,7 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     evaluate = commands.add_parser("eval", help="measure retrieval or answer quality")
-    evaluate.add_argument("target", choices=["retrieval", "answers"])
+    evaluate.add_argument(
+        "target",
+        choices=["prepare", "retrieval", "answers"],
+        help=(
+            "prepare: derive the key facts an answer must contain from the local corpus; "
+            "retrieval: score retrieval; answers: score generated answers"
+        ),
+    )
     evaluate.add_argument(
         "--model",
         action="append",
@@ -114,6 +121,11 @@ def _doctor(settings: Settings) -> int:
 
 
 def _evaluate(settings: Settings, target: str, models: Sequence[str] | None) -> int:
+    if target == "prepare":
+        from shurta.evaluation.prepare import main as prepare_main
+
+        return prepare_main(settings)
+
     if target == "retrieval":
         from shurta.evaluation.retrieval import main as retrieval_main
 
@@ -153,8 +165,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command == "serve":
         return _serve(settings, arguments.host, arguments.port, arguments.reload)
 
-    parser.error(f"unknown command {arguments.command!r}")  # pragma: no cover
-    return 2
+    parser.error(f"unknown command {arguments.command!r}")
 
 
 __all__ = ["build_parser", "main"]
