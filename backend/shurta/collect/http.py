@@ -1,16 +1,8 @@
 """A deliberately slow, cached HTTP client for collecting from official sites.
 
-Three properties matter more than speed here:
-
-* **It identifies itself.** Every request carries a user agent naming the
-  project and where to find it, so the site operator can see who is asking.
-* **It waits.** At least two seconds pass between requests, regardless of how
-  fast the responses come back. The whole catalogue is a few dozen requests, so
-  there is nothing to gain from going faster and a real cost to the operator if
-  everyone did.
-* **It remembers.** Responses are written to ``data/raw`` and read from there on
-  the next run, which makes collection resumable after an interruption and means
-  developing the normalisation step costs no further requests at all.
+It identifies itself in its user agent, waits at least two seconds between
+requests however fast they come back, and caches every response in ``data/raw``
+so a run resumes and developing the normalisation step costs no requests.
 """
 
 from __future__ import annotations
@@ -102,10 +94,8 @@ class PoliteClient:
     def get_json(self, url: str, *, refresh: bool = False) -> CachedResponse:
         """Return the JSON at ``url``, from the cache when it is already there.
 
-        Raises :class:`CollectionError` if the response is not JSON. That check
-        matters because the site answers unsupported requests with an HTML error
-        page under a 200 status, which would otherwise be stored as if it were
-        real content.
+        Raises :class:`CollectionError` if the response is not JSON: the site
+        answers unsupported requests with an HTML error page under a 200 status.
         """
         path = self.cache_dir / cache_name(url)
         if path.exists() and not refresh:

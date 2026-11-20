@@ -1,17 +1,11 @@
 """Measuring generated answers, and choosing the default model from the numbers.
 
-What is scored: key-fact correctness (does the answer state the figures,
-durations and documents the cited service states), citation correctness (every
-bracketed number must be one of the passages supplied), answer language,
-guardrail behaviour, and speed.
+Scored by rule, not by a model: key facts, citation validity, answer language,
+guardrail behaviour and speed. Comparisons run on Arabic-normalised text, so a
+fee in Arabic-Indic digits matches one in Western digits.
 
-Everything is checked by rule rather than judged by a model, on
-Arabic-normalised text so a fee in Arabic-Indic digits matches one in Western
-digits.
-
-A run is resumable. Each model's scorecard is written as that model finishes and
-is reused on the next run unless ``--force`` is given, so a two-hour comparison
-is not all-or-nothing.
+A run is resumable: each model's scorecard is written as that model finishes and
+reused next time unless ``--force`` is given.
 """
 
 from __future__ import annotations
@@ -479,10 +473,13 @@ async def evaluate_model(
 # --- scorecards, so a long run is resumable ----------------------------------
 
 
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9._-]+", "-", value.casefold())
+
+
 def scorecard_path(model: str, selection: str = FULL_SELECTION) -> Path:
     """Where one model's scorecard for one selection is kept."""
-    slug = re.sub(r"[^a-z0-9._-]+", "-", f"{model}--{selection}".casefold())
-    return SCORECARD_DIR / f"{slug}.json"
+    return SCORECARD_DIR / f"{_slug(model)}--{_slug(selection)}.json"
 
 
 def write_scorecard(result: ModelResult, *, settings: Settings) -> Path:
@@ -512,23 +509,51 @@ def write_scorecard(result: ModelResult, *, settings: Settings) -> Path:
     return path
 
 
-def read_scorecard(model: str, selection: str = FULL_SELECTION) -> ModelResult | None:
-    """A previously written scorecard, or ``None`` if there is none to reuse."""
-    path = scorecard_path(model, selection)
-    if not path.exists():
-        return None
+def _read_scorecard_file(path: Path, model: str) -> ModelResult | None:
+    """One scorecard file, or ``None`` if it cannot be read."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         items = [ItemResult(**item) for item in payload["items"]]
-    except (ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError):
         return None
     scores = payload.get("scores", {})
     return ModelResult(
         model=model,
         items=items,
-        selection=selection,
+        selection=str(scores.get("selection", FULL_SELECTION)),
         note=str(scores.get("note", "")),
     )
+
+
+def read_scorecard(model: str, selection: str = FULL_SELECTION) -> ModelResult | None:
+    """A previously written scorecard for this model and selection."""
+    path = scorecard_path(model, selection)
+    if not path.exists():
+        return None
+    result = _read_scorecard_file(path, model)
+    return result if result is not None and result.selection == selection else None
+
+
+def reuse_scorecard(model: str, selection: str = FULL_SELECTION) -> ModelResult | None:
+    """Any scorecard for this model, preferring the selection asked for.
+
+    A model measured on a subset is still worth reporting beside the others, so
+    one report can be assembled from runs made separately. Its own selection
+    comes with it, which is what keeps it out of the default-model choice.
+    """
+    exact = read_scorecard(model, selection)
+    if exact is not None:
+        return exact
+    others = sorted(
+        SCORECARD_DIR.glob(f"{_slug(model)}--*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in others:
+        result = _read_scorecard_file(path, model)
+        if result is not None:
+            return result
+    return None
 
 
 # --- choosing the default ----------------------------------------------------
@@ -738,13 +763,17 @@ def main(
             embedding_model=settings.embedding_model,
             embedding_timeout=settings.embedding_timeout,
             generation_timeout=settings.generation_timeout,
+            keep_alive=settings.keep_alive,
         )
         try:
             collected: list[ModelResult] = []
             for model in candidates:
-                existing = None if force else read_scorecard(model, selection)
+                existing = None if force else reuse_scorecard(model, selection)
                 if existing is not None:
-                    print(f"Reusing the scorecard for {model} ({selection}); --force re-runs it.")
+                    print(
+                        f"Reusing the scorecard for {model} ({existing.selection}); "
+                        "--force re-runs it."
+                    )
                     existing.note = labels.get(model, existing.note)
                     collected.append(existing)
                     continue

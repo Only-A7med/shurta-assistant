@@ -1,8 +1,6 @@
 """``python -m shurta doctor`` — check that everything the assistant needs is there.
 
-The point is that each failure tells the reader the command that fixes it. The
-usual first run has nothing built yet, and "no search index" is only useful next
-to "run ``python -m shurta index``".
+Each failure names the command that fixes it.
 """
 
 from __future__ import annotations

@@ -1,17 +1,12 @@
 """The on-disk search index: a vector array, a lexical index, and metadata.
 
-The corpus is a few hundred passages, so the dense side is a single NumPy array
-of about a megabyte. A vector database server would add a process to run, a
-protocol to speak and a failure mode to handle, in exchange for nothing a
-corpus this size needs: an exhaustive cosine similarity over 500 vectors is a
-matrix multiply that finishes in well under a millisecond.
+A few hundred passages, so the dense side is one NumPy array of about a megabyte
+and an exhaustive cosine similarity is a sub-millisecond matrix multiply. No
+vector database.
 
-Three files make up an index:
-
-* ``vectors.npy`` — one row per chunk, L2-normalised so that cosine similarity
-  is a dot product.
-* ``chunks.json`` — the chunks themselves, in the same order as the rows.
-* ``index.json`` — the lexical index and the metadata describing the build.
+Three files: ``vectors.npy`` (one L2-normalised row per chunk, so cosine
+similarity is a dot product), ``chunks.json`` (the chunks, in the same order),
+``index.json`` (the lexical index and the build metadata).
 """
 
 from __future__ import annotations

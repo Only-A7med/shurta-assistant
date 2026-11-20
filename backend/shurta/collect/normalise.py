@@ -1,15 +1,9 @@
 """Turning the site's content components into this project's service schema.
 
-The content interface describes a service as a list of typed components —
-a description, a fee table, a document checklist, a set of channel switches, and
-so on. This module reads the components it understands and leaves every field it
-has no source for empty.
-
-Nothing here invents content. The only text this module contributes of its own
-is vocabulary: the components express channels, payment methods and beneficiary
-groups as booleans with no labels attached, so the human-readable names for
-those switches are written out here in both languages. Everything else is the
-source's own wording, carried across unchanged.
+The components it understands are read; every field with no source is left
+empty. Nothing is invented. The only text written here is vocabulary: channels,
+payment methods and beneficiary groups arrive as unlabelled booleans, so their
+names are spelled out in both languages. The rest is the source's own wording.
 """
 
 from __future__ import annotations

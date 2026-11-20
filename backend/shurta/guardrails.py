@@ -1,25 +1,17 @@
 """The checks that run before a model is ever asked anything.
 
-Two kinds of question must not be handled by retrieval and generation at all.
+An emergency gets a fixed response naming the emergency numbers: a telephone
+number in the first line beats a paragraph that arrives seconds later. The
+detector is tuned to fire readily, since a false positive costs one unnecessary
+line and a miss costs much more.
 
-An **emergency** needs a telephone number in the first line, not a paragraph
-assembled from a service catalogue. On processor-only inference the first token
-can be seconds away, and the answer could be wrong. So an emergency intent
-short-circuits the whole pipeline and returns a fixed response naming the
-emergency numbers. This is a deliberate trade: the detector is tuned to fire
-readily, and a false positive costs a reader one unnecessary line of emergency
-numbers, which is a far smaller harm than a missed one.
+A personal-case lookup — "what is the status of my fine?" — is declined with the
+official channel named, because the answer lives in a record this project has no
+access to.
 
-A **personal-case lookup** — "what is the status of my fine?" — cannot be
-answered from published service information by anyone, because the answer lives
-in a record the assistant has no access to and should not have. Guessing would
-be worse than useless, so these are declined with the official channel named
-instead.
-
-Both detectors run on Arabic-normalised text, and the Arabic side matches
-*tokens* rather than substrings. That distinction is not cosmetic: matching
-``لص`` ("thief") as a substring finds it inside ``الصلاحية`` ("validity"), which
-turned a question about an expired identity card into an emergency.
+Both detectors run on Arabic-normalised text, and the Arabic side matches tokens
+rather than substrings: ``لص`` ("thief") is a substring of ``الصلاحية``
+("validity"), which once turned an expired identity card into an emergency.
 """
 
 from __future__ import annotations
@@ -68,9 +60,9 @@ _EMERGENCY_ENGLISH = re.compile(
     r"|\bdying\b"
 )
 
-#: Single Arabic words that signal an emergency, matched against tokens. Both
-#: the bare form and the form carrying the definite article are listed where the
-#: word is short enough that the tokeniser keeps the article attached.
+#: Single Arabic words signalling an emergency, matched against tokens. Short
+#: words are listed both bare and with the definite article, which the tokeniser
+#: keeps attached.
 _EMERGENCY_WORDS_ARABIC = frozenset(
     {
         "النجده",
@@ -131,9 +123,8 @@ _EMERGENCY_ARABIC_PHRASE = re.compile(
     "|".join(re.escape(phrase) for phrase in _EMERGENCY_PHRASES_ARABIC)
 )
 
-#: Phrasings that ask *about* a service rather than report something happening.
-#: Without these, "how do I report a robbery?" would be answered with emergency
-#: numbers instead of with the reporting service.
+#: Phrasings that ask *about* a service rather than report something happening,
+#: so "how do I report a robbery?" reaches the reporting service.
 _INFORMATIONAL = re.compile(
     r"\bhow (do|can|would|should) i\b"
     r"|\bhow to\b"
@@ -252,9 +243,8 @@ _LOOKUP_PHRASES_ARABIC = (
 
 _LOOKUP_ARABIC = re.compile("|".join(re.escape(phrase) for phrase in _LOOKUP_PHRASES_ARABIC))
 
-#: Phrasings that are a personal lookup on their own, because they name the
-#: reader and the sought value in the same breath — "how much do I owe",
-#: "المستحق علي". These do not need a separate own-record reference.
+#: Phrasings that are a personal lookup on their own, naming the reader and the
+#: sought value at once — "how much do I owe". No own-record reference needed.
 _PERSONAL_DIRECT = re.compile(
     r"\bhow much do i\b[^.?!]{0,20}\bowe\b"
     r"|\bdo i owe\b"
@@ -284,8 +274,7 @@ _PERSONAL_DIRECT_ARABIC = re.compile(
 )
 
 #: Procedure phrasings that rule a personal lookup out. Narrower than the
-#: informational list used for emergencies: "what is the status of my fine" is a
-#: lookup even though it opens with "what is".
+#: emergency list: "what is the status of my fine" is a lookup all the same.
 _PROCEDURE = re.compile(
     r"\bhow (do|can|would|should) i\b|\bhow to\b"
     r"|\bcan i (apply|pay|submit|report|get|request|use|check|settle)\b"
@@ -351,9 +340,8 @@ def _is_informational(normalised: str) -> bool:
 def is_emergency(question: str) -> bool:
     """Whether the question reports something happening now.
 
-    A question *asking about* a service — how to report a robbery, what a report
-    costs — is not an emergency even though it names one, so an informational
-    phrasing overrides the match.
+    An informational phrasing overrides the match: asking how to report a
+    robbery names one without being one.
     """
     normalised = normalise(question)
     matched = (
@@ -367,11 +355,9 @@ def is_emergency(question: str) -> bool:
 def is_personal_case(question: str) -> bool:
     """Whether the question asks for a value from the reader's own record.
 
-    Two things have to be present together: a reference to the reader's own
-    record, and a request for a value *from* it. Either alone is ordinary —
-    "can I pay my traffic fines in instalments?" refers to the reader's own
-    fines but asks how the service works, which published information answers.
-    Some phrasings carry both at once and are enough on their own.
+    Both an own-record reference and a lookup have to be present: "can I pay my
+    traffic fines in instalments?" mentions the reader's fines but asks how the
+    service works. Some phrasings carry both at once.
     """
     normalised = normalise(question)
     tokens = set(tokenise(question))
@@ -390,12 +376,7 @@ def is_personal_case(question: str) -> bool:
 
 
 def classify(question: str) -> Intent:
-    """How a question should be handled.
-
-    Emergency is checked first and wins outright: a reader in trouble who also
-    mentions their own case needs the telephone numbers, not an explanation of
-    which channel to use.
-    """
+    """How a question should be handled. Emergency wins outright."""
     if is_emergency(question):
         return Intent.EMERGENCY
     if is_personal_case(question):

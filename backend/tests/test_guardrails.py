@@ -1,8 +1,7 @@
 """Tests for the checks that run before any model call.
 
-These matter more than their size suggests. A missed emergency gives somebody a
-paragraph about service fees when they needed a telephone number; a personal-case
-question answered rather than declined invites a model to invent a fine.
+A missed emergency gives somebody service fees when they needed a telephone
+number; an answered personal-case question invites a model to invent a fine.
 """
 
 from __future__ import annotations

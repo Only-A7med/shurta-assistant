@@ -1,29 +1,12 @@
 """The retriever: keyword search and vector search, fused.
 
-Each method fails in a way the other covers.
+BM25 is exact about a figure or a name but cannot cross languages. The ``bge-m3``
+embeddings cross languages and paraphrase but are vaguer about a specific string.
+Fused, vector search alone scores better overall (recall@1 0.910 against 0.890)
+yet misses one code-switched question in five, which fusion gets right.
 
-BM25 matches the words that were actually typed. It is exact about a fee figure,
-a service name or an identifier, and it is the only one of the two that reliably
-finds a rare term. But it cannot match a question to a passage that says the
-same thing in different words, and it cannot cross languages at all: the Arabic
-``الرسوم`` shares no token with the English "fees".
-
-The embedding model crosses both gaps, because ``bge-m3`` places text with the
-same meaning near each other regardless of the language it is written in. What
-it is weaker at is precision on a specific string — it will happily rank a
-passage about a different certificate close to one about the right one.
-
-So both are run and their rankings fused. Measured on the evaluation set, vector
-search alone has the better overall recall@1 — 0.91 against the fused 0.89, two
-questions in a hundred — but it is the fused ranking that answers every
-code-switched question correctly, where vector search alone misses one in five.
-Two questions of overall accuracy is a fair price for not failing a whole class
-of question, which is why the fused ranking is the one the assistant uses.
-
-The retriever also takes the
-language it should prefer: both languages are searched, since a question in one
-may be answered by a passage in the other, but when two passages say the same
-thing the one in the reader's language is the better citation.
+Both languages are always searched, with a small preference for passages in the
+reader's own. See docs/architecture.md and eval/retrieval-results.md.
 """
 
 from __future__ import annotations
@@ -39,19 +22,17 @@ from shurta.models import Language
 from shurta.retrieval.fusion import reciprocal_rank_fusion
 from shurta.retrieval.store import SearchIndex
 
-#: How many candidates each method contributes before fusion. Wider than the
-#: final number of chunks, so fusion has something to disagree about.
+#: How many candidates each method contributes before fusion, wider than the
+#: final number so fusion has something to disagree about.
 CANDIDATES = 20
 
-#: Weight on each ranking during fusion, equal after a sweep showed that
-#: favouring vector search gained nothing overall and lost the code-switched
-#: questions. See :mod:`shurta.retrieval.fusion` and ``eval/retrieval-results.md``.
+#: Weight on each ranking during fusion. Equal: a sweep favouring vector search
+#: gained nothing overall and lost the code-switched questions.
 LEXICAL_WEIGHT = 1.0
 DENSE_WEIGHT = 1.0
 
-#: How much a passage in the reader's own language is favoured, as a multiplier
-#: on its fused score. Small on purpose: it should settle a near-tie, not
-#: override a clearly better passage in the other language.
+#: Multiplier favouring a passage in the reader's own language. Small on
+#: purpose: it settles a near-tie rather than overriding a better passage.
 SAME_LANGUAGE_BOOST = 1.15
 
 EmbedQuery = Callable[[str], Awaitable[Sequence[float]]]
@@ -83,11 +64,9 @@ class RetrievalResult:
     best_similarity: float = 0.0
     """Cosine similarity of the closest passage to the question.
 
-    Reported separately from the fused score because the two answer different
-    questions. The fused score says which passage ranked best; it is built from
-    rank positions alone, so the top passage always scores near the maximum
-    whether or not it is relevant. Cosine similarity is an absolute measure, and
-    is therefore the only one of the two that can say "nothing here is close".
+    Reported separately from the fused score, which is built from rank positions
+    and so scores the top passage highly whether or not it is relevant. Only an
+    absolute measure can say that nothing here is close.
     """
 
     embedding_ms: float = 0.0
@@ -114,8 +93,7 @@ class HybridRetriever:
         if scores.size == 0:
             return []
         take = min(limit, scores.size)
-        # argpartition finds the top rows without sorting the whole array, which
-        # matters not at all at this corpus size but costs nothing to get right.
+        # argpartition finds the top rows without sorting the whole array.
         candidates = np.argpartition(-scores, take - 1)[:take]
         return [int(position) for position in candidates[np.argsort(-scores[candidates])]]
 

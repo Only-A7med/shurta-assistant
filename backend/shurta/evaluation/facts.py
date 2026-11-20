@@ -1,13 +1,11 @@
 """Extracting checkable facts from a service field, and finding them in an answer.
 
-Answer grading here is rule-based rather than model-judged, because the facts
-that matter in this domain are the ones a rule can check exactly: a fee is a
-number, a processing time is a number and a unit, a required document is a
-phrase from a list. A model judging its own output would be both slower and
-less trustworthy than comparing numbers.
+Rule-based rather than model-judged: a fee is a number, a processing time a
+number and a unit, a document a phrase. Both sides are Arabic-normalised, so an
+answer writing ``٢٠٠`` matches a corpus writing ``200``.
 
-The comparison runs on Arabic-normalised text on both sides, so an answer that
-writes a fee as ``٢٠٠`` matches a corpus that writes ``200``.
+Any pattern matched against normalised text must itself be written in normalised
+spelling, or it silently never matches.
 """
 
 from __future__ import annotations
@@ -17,12 +15,10 @@ import re
 from shurta.arabic import normalise, tokenise
 from shurta.models import Language, Service
 
-# Every pattern below is matched against text that has already been through
-# :func:`shurta.arabic.normalise`, so every Arabic alternative must be written
-# in its *normalised* spelling. This is not a detail: an earlier version wrote
+# Every pattern below is matched against normalised text, so every Arabic
+# alternative is written in its normalised spelling. An earlier version wrote
 # ``أيام`` where the normaliser produces ``ايام``, and Arabic durations silently
-# extracted as nothing at all — which does not fail loudly, it just quietly
-# stops checking half the facts.
+# extracted as nothing.
 
 #: A monetary figure: a number next to a currency word, in either order and in
 #: either language. Normalisation has already case-folded the text.
@@ -42,13 +38,12 @@ _DURATION = re.compile(
 _INSTANT = re.compile(r"\b(instant|immediately|فوري|فورا)\b")
 
 #: How much of a document phrase has to appear in the answer for it to count.
-#: A document line can be long — "Applying from abroad — copy of the previous
-#: residence permit" — and an answer that paraphrases the condition while
-#: naming the document correctly should pass.
+#: A document line can be long, and an answer that paraphrases the condition
+#: while naming the document correctly should pass.
 DOCUMENT_TOKEN_OVERLAP = 0.6
 
-#: Document phrases shorter than this in tokens are skipped as key facts: a
-#: one-word requirement such as "passport" would match almost any answer.
+#: Document phrases shorter than this are skipped: a one-word requirement such
+#: as "passport" would match almost any answer.
 MINIMUM_DOCUMENT_TOKENS = 2
 
 

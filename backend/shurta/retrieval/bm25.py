@@ -1,14 +1,9 @@
 """BM25 over Arabic-normalised text.
 
-BM25 is written out here rather than taken from a library for one reason: the
-tokeniser has to be the Arabic-normalising one from :mod:`shurta.arabic`, on
-both the passages and the query, or Arabic keyword search barely works. Once the
-tokeniser is yours the rest of BM25 is forty lines, and keeping it in the
-repository means it is directly testable.
-
-The formula is BM25 Okapi with the usual defaults: ``k1`` controls how quickly a
-repeated term stops adding to the score, ``b`` how strongly a long passage is
-penalised for its length.
+Written out rather than taken from a library because the tokeniser has to be the
+Arabic-normalising one from :mod:`shurta.arabic`, on both the passages and the
+query. BM25 Okapi with the usual defaults: ``k1`` bounds what a repeated term
+adds, ``b`` how strongly a long passage is penalised.
 """
 
 from __future__ import annotations

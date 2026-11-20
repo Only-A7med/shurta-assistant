@@ -1,12 +1,8 @@
 """Deriving the key facts an answer must contain, from the local corpus.
 
-The evaluation set names a service and a field; this reads the current corpus
-and turns that reference into concrete, checkable facts — the figures, the
-durations and the document phrases. The result is written to a file that is not
-committed, because it is derived from collected content.
-
-Run it after a collection, and again after any re-collection: a changed fee on
-the official page should change what the evaluation expects.
+A question names a service and a field; this turns that into concrete figures,
+durations and document phrases. The result is untracked, being derived from
+collected content. Re-run it after every collection.
 """
 
 from __future__ import annotations

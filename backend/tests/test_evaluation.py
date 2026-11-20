@@ -1,12 +1,9 @@
 """Tests for the evaluation harness, and an end-to-end run over the fixtures.
 
-The scoring is tested because the default model was chosen on it: a citation
-check that accepts an invented reference, or a fact comparison that misses an
-Arabic-Indic figure, would quietly change that choice.
-
-The end-to-end run uses the invented fixture catalogue and a stand-in model, so
-continuous integration exercises the whole path — chunk, index, retrieve,
-score — with no provider running.
+The scoring is tested because the default model was chosen on it. The
+end-to-end run uses the fixture catalogue and a stand-in model, so continuous
+integration exercises chunking, indexing, retrieval and scoring with no
+provider running.
 """
 
 from __future__ import annotations
@@ -32,6 +29,7 @@ from shurta.evaluation.answers import (
     count_facts,
     first_per_group,
     read_scorecard,
+    reuse_scorecard,
     score_question,
     select,
     speed_score,
@@ -407,6 +405,36 @@ class TestScorecards:
 
         scorecard_path("gemma3:4b").write_text("{ not json", encoding="utf-8")
         assert read_scorecard("gemma3:4b") is None
+
+    def test_a_subset_scorecard_can_still_be_reused_in_a_full_report(
+        self, scorecards: Path, settings: Settings
+    ) -> None:
+        """One report is assembled from runs made separately."""
+        write_scorecard(
+            ModelResult(model="qwen3:4b", items=[item()], selection="subset:latency"),
+            settings=settings,
+        )
+        reused = reuse_scorecard("qwen3:4b", FULL_SELECTION)
+        assert reused is not None
+        assert reused.selection == "subset:latency"
+        assert reused.comparable is False
+
+    def test_reuse_prefers_the_selection_that_was_asked_for(
+        self, scorecards: Path, settings: Settings
+    ) -> None:
+        write_scorecard(
+            ModelResult(model="gemma3:4b", items=[item()], selection="subset:latency"),
+            settings=settings,
+        )
+        write_scorecard(ModelResult(model="gemma3:4b", items=[item(), item()]), settings=settings)
+        reused = reuse_scorecard("gemma3:4b", FULL_SELECTION)
+        assert reused is not None
+        assert reused.selection == FULL_SELECTION
+        assert len(reused.items) == 2
+
+    def test_reuse_finds_nothing_for_a_model_never_run(self, scorecards: Path) -> None:
+        scorecards.mkdir(parents=True, exist_ok=True)
+        assert reuse_scorecard("never-run") is None
 
     def test_a_model_name_with_a_colon_becomes_a_usable_file_name(
         self, scorecards: Path, settings: Settings

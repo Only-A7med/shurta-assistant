@@ -1,16 +1,9 @@
 """The evaluation set, and the key facts derived from it.
 
-The question file names a service and the *field* of that service an answer has
-to get right, rather than spelling out the expected fee or document list. That
-split is deliberate and has two benefits.
-
-The first is practical: the facts stay correct. A fee written into the question
-file would silently become wrong the next time the official page changes,
-whereas a field reference re-reads whatever the current corpus says.
-
-The second is that no collected content needs to live in this repository. The
-questions are original wording; the key facts are extracted from the local
-corpus by ``python -m shurta eval prepare`` into a file that is not committed.
+A question names a service and the *field* an answer has to get right, not the
+expected fee itself. So the expectations stay correct when the official page
+changes, and no collected content has to live in this repository: the figures are
+derived locally by ``python -m shurta eval prepare`` into an untracked file.
 """
 
 from __future__ import annotations
@@ -36,11 +29,8 @@ class Behaviour(StrEnum):
     """Answer from the retrieved context, with citations."""
 
     REFUSE = "refuse"
-    """Decline and name the official channel.
-
-    Used for questions about somebody's own case — "what is the status of my
-    fine?" — which no amount of published service information can answer.
-    """
+    """Decline and name the official channel, for a question about somebody's
+    own case, which published information cannot answer."""
 
     OUT_OF_SCOPE = "out_of_scope"
     """Say the context does not cover it, and point to the official channels."""
@@ -74,11 +64,8 @@ class Question(BaseModel):
 
 
 class KeyFacts(BaseModel):
-    """The facts an answer to one question has to contain.
-
-    Extracted from the local corpus rather than written by hand, so they cannot
-    drift away from what the source currently says.
-    """
+    """The facts an answer to one question has to contain, extracted from the
+    local corpus rather than written by hand."""
 
     model_config = ConfigDict(frozen=True)
 

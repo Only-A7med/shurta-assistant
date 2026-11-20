@@ -1,28 +1,12 @@
 """Reciprocal rank fusion.
 
-Two rankings have to be combined, and their scores are not comparable: BM25
-returns an unbounded sum of term weights, cosine similarity a number between
-minus one and one. Normalising either onto the other's scale means inventing a
-mapping, and the mapping would change with the corpus.
+BM25 scores and cosine similarities are not comparable, so the scores are thrown
+away and only the positions kept: a document scores ``1 / (k + rank)`` in each
+ranking it appears in, and the contributions are added.
 
-Reciprocal rank fusion sidesteps that by throwing the scores away and keeping
-only the positions. A document scores ``1 / (k + rank)`` in each ranking it
-appears in, and the contributions are added. So a passage both methods place
-near the top wins, a passage only one method found still places, and the
-arithmetic does not care that the two methods measure different things.
-
-``k`` flattens the curve near the top. At the standard 60, first and second
-place differ by about 1.6 per cent, so one ranking being slightly more confident
-does not override agreement between the two.
-
-Each ranking can also carry a weight. The default is equal weighting, and
-measurement is the reason it stayed that way. Vector search is the stronger
-ranking overall on this corpus — recall@1 of 0.91 against keyword search's 0.81
-— which suggested down-weighting the keyword side. Sweeping the weight showed
-the opposite: lowering it changed the overall figures by less than one question
-in a hundred, and it cost the code-switched questions outright, where keyword
-search is the only method that finds a Latin-script service name typed inside an
-Arabic sentence. So the weights exist, and they are set to one.
+``k`` flattens the curve near the top; at the standard 60, first and second place
+differ by about 1.6 per cent. Weights default to equal — see
+docs/architecture.md for the sweep that kept them there.
 """
 
 from __future__ import annotations

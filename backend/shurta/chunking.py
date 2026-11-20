@@ -1,20 +1,11 @@
 """Splitting services into the passages that retrieval works over.
 
-One chunk is one section of one service in one language — the fees of the police
-clearance certificate in English, its required documents in Arabic, and so on.
+One chunk is one section of one service in one language. Coarser drags unrelated
+sections into the prompt; finer breaks a fee table apart, and "Resident: AED 200"
+on its own says nothing about which service it belongs to.
 
-That granularity is chosen deliberately. A whole service in one chunk would mean
-that a question about a fee drags the eligibility conditions, the channel list
-and the opening hours into the prompt with it, which on processor-only inference
-is paid for twice: in memory and in time to first token. Splitting any finer
-than a section would break a fee table apart, and a fee line on its own
-("Resident: AED 200") is not answerable without knowing which service and which
-fee it belongs to.
-
-Each chunk therefore carries the context needed to stand alone: both names of
-its service, the section it came from, its language, and the page it came from.
-The heading lines are part of the embedded and indexed text, which is what lets
-an Arabic question about ``الرسوم`` reach an English fee table.
+Each chunk carries both names of its service, its section heading, its language
+and its source page, so it stands alone as a citation. See docs/architecture.md.
 """
 
 from __future__ import annotations
@@ -25,8 +16,8 @@ from pydantic import BaseModel, ConfigDict
 
 from shurta.models import Corpus, Language, Service
 
-#: The sections a chunk can come from, and their heading in each language. The
-#: order is the order a reader would want them in an answer.
+#: The sections a chunk can come from, and their heading in each language, in
+#: the order a reader would want them in an answer.
 SECTIONS: tuple[tuple[str, str, str], ...] = (
     ("description", "Overview", "نظرة عامة"),
     ("eligibility", "Who can apply and conditions", "من يمكنه التقديم والشروط"),
@@ -90,10 +81,8 @@ def chunk_service(service: Service, language: Language) -> list[Chunk]:
         category_label = _CATEGORY[0 if language is Language.EN else 1]
         category = service.category.get(language)
 
-        # The service is named in both languages in every chunk. It costs a few
-        # tokens and it is what makes retrieval work across the two languages:
-        # an Arabic question can land on an English passage through the Arabic
-        # name sitting in it, and the other way round.
+        # Naming the service in both languages is what lets an Arabic question
+        # land on an English passage, and the other way round.
         lines = [
             f"{service.name(language)} ({_other_name(service, language)})",
             f"{category_label}: {category}" if category else "",

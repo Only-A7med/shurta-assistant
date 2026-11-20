@@ -20,13 +20,9 @@ from shurta.retrieval.hybrid import HybridRetriever
 from shurta.retrieval.store import FORMAT_VERSION, IndexError_, SearchIndex, normalise_rows
 
 
-# --------------------------------------------------------------------------
-# A stand-in embedder: a bag-of-words vector over the corpus vocabulary.
-#
-# It is not a language model, but it has the one property the retriever needs
-# from an embedder — texts sharing words land near each other — which is enough
-# to test fusion, ranking and the language preference without Ollama.
-# --------------------------------------------------------------------------
+# A stand-in embedder: a bag-of-words vector over the corpus vocabulary. Texts
+# sharing words land near each other, which is enough to test fusion, ranking
+# and the language preference without Ollama.
 class BagOfWordsEmbedder:
     def __init__(self, documents: list[str]) -> None:
         vocabulary: dict[str, int] = {}

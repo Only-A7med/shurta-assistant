@@ -1,32 +1,15 @@
 """Which services the assistant covers, and why.
 
-The official catalogue holds 91 records, but they are not all services a member
-of the public would ask a question about. Roughly a quarter are navigation tiles
-with no content of their own — a "Request a Permit" card that only leads
-elsewhere — and another group is addressed to banks, suppliers, law firms,
-diplomatic missions or Dubai Police staff rather than to the public.
+The official catalogue holds 91 records; the forty below are what remains after
+three filters: the record carries real content rather than being a navigation
+tile, a member of the public is the applicant, and both language versions are
+published.
 
-The forty entries below are what remains after three filters:
-
-1. **It is a service, not a signpost.** The record carries real content: a
-   description plus at least one of fees, required documents, channels,
-   processing time or conditions.
-2. **A member of the public is the applicant.** Services whose beneficiary is a
-   bank, a supplier, a law firm, a diplomatic mission or a police retiree are
-   left out, because a public question-answering demonstration cannot be
-   evaluated honestly on them.
-3. **Both languages exist.** The English and Arabic records must both be
-   published, since the whole point is answering in either language.
-
-Each entry fixes a stable ``id`` by hand rather than deriving one from the slug.
-The slugs are not all well-formed as identifiers — one carries a numeric path
-segment — and an identifier that appears in citations should not change if the
-site reorganises its routes.
-
-The category of each service is recorded as one of the site's own seven category
-slugs. The content interface leaves most services' category field empty and only
-associates its navigation tiles with categories, so the association is supplied
-here and the category *names* are then read from the site in both languages.
+Each entry fixes a stable ``id`` by hand, because the slugs are not all
+well-formed identifiers and a citation should survive the site reorganising its
+routes. The category is one of the site's own seven slugs, supplied here because
+the content interface leaves most services uncategorised; the category *names*
+are read from the site.
 """
 
 from __future__ import annotations

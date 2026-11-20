@@ -1,16 +1,13 @@
 """Arabic text normalisation, used on both sides of lexical retrieval.
 
-Arabic is written with several interchangeable spellings of the same word. A
-question may say ``الاقامة`` where the official page says ``الإقامة``; it may
-write ``شهاده`` for ``شهادة``, stretch a word with tatweel as ``شــهادة``, add
-vowel marks, or give a fee as ``٥٠٠`` rather than ``500``. None of those
-differences carry meaning here, but all of them defeat exact token matching.
+The same word is written several ways — ``الاقامة`` for ``الإقامة``, ``شهاده``
+for ``شهادة``, ``٥٠٠`` for ``500`` — and none of the differences carry meaning.
+Normalising both the indexed text and the query collapses them onto one
+spelling.
 
-Normalising both the indexed text and the query collapses those variants onto
-one spelling, which is what makes keyword search usable for Arabic at all. The
-transformation is deliberately lossy and is only ever applied to the text used
-for *matching* — the text shown to the reader and sent to the model stays
-exactly as the source wrote it.
+The transformation is lossy and is applied only to the text used for *matching*.
+What the reader sees and what the model is sent is the source's own wording. See
+docs/architecture.md for the table of variants.
 """
 
 from __future__ import annotations
@@ -90,10 +87,8 @@ def western_digits(text: str) -> str:
 def normalise(text: str) -> str:
     """Normalise text for matching.
 
-    Applies, in order: Unicode compatibility composition, diacritic removal,
-    tatweel removal, letter unification, digit conversion, case folding and
-    whitespace collapsing. Safe to call on English text, where it reduces to
-    lowercasing and whitespace tidying.
+    Compatibility composition, diacritics, tatweel, letter unification, digits,
+    case folding, whitespace. On English text this is lowercasing and tidying.
     """
     text = unicodedata.normalize("NFKC", text)
     text = strip_diacritics(text)
@@ -119,8 +114,7 @@ def tokenise(text: str) -> list[str]:
 def _strip_article(token: str) -> str:
     """Drop a leading Arabic definite article, keeping the token meaningful."""
     for prefix in _PREFIXES:
-        # Three characters is the shortest Arabic root worth keeping after the
-        # article; below that, stripping would turn a word into noise.
+        # Three characters is the shortest root worth keeping after the article.
         if token.startswith(prefix) and len(token) > len(prefix) + 2:
             return token[len(prefix) :]
     return token
@@ -138,10 +132,7 @@ def arabic_ratio(text: str) -> float:
 def detect_language(text: str) -> str:
     """Return ``"ar"`` or ``"en"`` for a piece of user text.
 
-    A mixed question is treated as Arabic once a meaningful share of its letters
-    is Arabic script, because a reader who writes any Arabic in their question
-    expects to be answered in Arabic. The threshold is low on purpose: a
-    code-switched question such as "ابغى أسوي police clearance certificate" is
+    The threshold is low on purpose: "ابغى أسوي police clearance certificate" is
     mostly Latin letters by count but is an Arabic question.
     """
     return "ar" if arabic_ratio(text) >= 0.2 else "en"

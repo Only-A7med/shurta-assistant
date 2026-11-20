@@ -27,18 +27,22 @@ from shurta.models import Language
 STREAM_HEADERS = {
     "Cache-Control": "no-cache, no-store",
     "Connection": "keep-alive",
-    # Tells nginx and similar not to buffer the stream, which would otherwise
-    # hold every token back until the answer was complete.
+    # Stops nginx and similar holding every token back until the end.
     "X-Accel-Buffering": "no",
 }
 
 
 class ChatRequest(BaseModel):
-    """A question. Deliberately the only thing the endpoint accepts."""
+    """A question, which is all the endpoint accepts."""
 
     question: str = Field(min_length=1, max_length=2000)
     language: Language | None = None
-    """Override the detected language, which the interface's toggle uses."""
+    """The language the client is rendering in, echoed back in the events.
+
+    The answer itself follows the language of the question, which is detected:
+    a reader who writes any Arabic expects an Arabic answer whatever the
+    interface is set to.
+    """
 
 
 class ServiceSummary(BaseModel):

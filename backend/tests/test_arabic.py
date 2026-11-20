@@ -1,9 +1,5 @@
-"""Tests for Arabic normalisation.
-
-The point of each case is that two spellings a reader would consider the same
-word end up as the same token, because lexical retrieval can only match what is
-spelled identically.
-"""
+"""Tests for Arabic normalisation: two spellings of the same word have to end
+up as the same token."""
 
 from __future__ import annotations
 

@@ -1,8 +1,7 @@
 """Tests for turning content components into the service schema.
 
-The payloads here are invented, but they reproduce the shapes the source
-actually uses — including the awkward ones: a duration split into a unit and a
-count, and a document entry whose real documents hang off it as sub-keys.
+The payloads are invented but reproduce the shapes the source uses, including a
+duration split into a unit and a count, and documents hanging off sub-keys.
 """
 
 from __future__ import annotations

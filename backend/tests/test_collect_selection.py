@@ -1,8 +1,7 @@
 """Tests for the service selection table.
 
-A mistake here is quiet: a duplicate identifier drops a service from the corpus
-without any error, and a typo in a category slug leaves a service uncategorised.
-So the table checks itself before a collection starts, and that check is tested.
+A mistake here is quiet — a duplicate identifier drops a service silently — so
+the table checks itself before a collection starts.
 """
 
 from __future__ import annotations

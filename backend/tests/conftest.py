@@ -1,9 +1,5 @@
-"""Shared fixtures.
-
-Everything here is either invented for the tests or a small synthetic payload in
-the shape of the source's own, so the suite never needs network access or any
-collected content.
-"""
+"""Shared fixtures. Everything here is invented or synthetic, so the suite
+needs no network access and no collected content."""
 
 from __future__ import annotations
 

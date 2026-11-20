@@ -1,27 +1,19 @@
 """Reading the public service catalogue from the official Dubai Police site.
 
-The service pages are rendered by a browser-side application, so fetching the
-page routes returns an empty shell. The same content, however, is served by the
-site's own public content interface under ``/dpcms/api``, as structured JSON and
-in both languages. Reading that is both easier and considerably gentler on the
-site than driving a browser over the rendered pages, so that is what this does.
+The service pages are a browser-side application, so fetching a page route
+returns an empty shell. The same content is served under ``/dpcms/api`` as
+structured JSON in both languages, which is lighter on the site than driving a
+browser.
 
-Several quirks of the site's edge are worked around here rather than discovered
-again later:
+Three quirks of the site's edge are worked around here: only the ``/dpcms/api``
+prefix is answered, any square bracket in the query string is rejected — which
+rules out Strapi's ``pagination[page]`` and ``filters[...]``, so the catalogue
+is covered by merging differently ordered ``sort`` slices — and the page size is
+fixed at 25.
 
-* Only the ``/dpcms/api`` prefix is answered; the bare ``/api`` path is refused
-  at the connection level.
-* Any square bracket in the query string is rejected, encoded or not, which
-  rules out both Strapi's ``pagination[page]`` and its ``filters[...]`` syntax.
-  ``sort`` is accepted, so the catalogue is covered by requesting a handful of
-  differently ordered slices and merging them, and filtering happens in this
-  process rather than server-side.
-* The default page size is 25 and cannot be raised.
-
-The site holds the display language in browser state rather than in the path, so
-a service's page address is the same in both languages. The language is instead
-appended as the ``lng`` query parameter the site's own language detector reads,
-which gives a citation that opens in the language the answer was written in.
+A service's page address is the same in both languages, since the site holds the
+language in browser state. The language is appended as the ``lng`` parameter its
+own detector reads, so a citation opens in the answer's language.
 """
 
 from __future__ import annotations

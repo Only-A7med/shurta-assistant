@@ -1,9 +1,7 @@
 """The normalised shape of a public service, and the corpus that holds them.
 
-Every text field is bilingual: a :class:`Bilingual` value carries the English and
-the Arabic rendering side by side, and either side may legitimately be empty.
-An empty field means *the source did not state this*, and is never filled in
-with a guess — an answer built on an invented fee would be worse than no answer.
+Every text field is bilingual, and either side may be empty. An empty field
+means the source did not state this; it is never filled in with a guess.
 """
 
 from __future__ import annotations
