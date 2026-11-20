@@ -3,6 +3,21 @@
 Ollama runs on the host machine and serves both halves of the pipeline: the
 embedding model for retrieval and the instruction model for the answer. Nothing
 here reaches outside the machine it runs on.
+
+One behaviour is worth stating plainly, because getting it wrong produces an
+answer that looks like a model talking to itself.
+
+Some instruction models reason before answering. Ollama reports that reasoning
+in a separate ``thinking`` field, and the answer in ``response``. The ``think``
+request parameter does **not** switch the reasoning off — it switches off
+Ollama's *separation* of it, after which the reasoning arrives in ``response``
+and is indistinguishable from the answer. Sending ``think: false`` to a model
+whose reasoning cannot be disabled therefore makes things worse, not better.
+
+So this client never sends ``think``. It lets Ollama separate the two and yields
+only ``response``, which is correct for a model that reasons and a no-op for one
+that does not. Whether a model's reasoning can be turned off at all is a
+property of the model, and the answer evaluation measures what it costs.
 """
 
 from __future__ import annotations
@@ -73,21 +88,14 @@ class OllamaClient:
 
     # --- generation ----------------------------------------------------------
 
-    async def generate(
-        self,
-        prompt: str,
-        *,
-        model: str | None = None,
-        options: GenerationOptions | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream an answer, yielding each piece of text as it arrives."""
-        settings = options or GenerationOptions()
+    def _generation_body(
+        self, prompt: str, model: str | None, settings: GenerationOptions
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": model or self.generation_model,
             "prompt": prompt,
             "stream": True,
             "keep_alive": settings.keep_alive,
-            "think": settings.think,
             "options": {
                 "num_ctx": settings.num_ctx,
                 "num_predict": settings.max_tokens,
@@ -96,6 +104,17 @@ class OllamaClient:
         }
         if settings.stop:
             body["options"]["stop"] = list(settings.stop)
+        return body
+
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        options: GenerationOptions | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream the answer, discarding any reasoning the model emits."""
+        body = self._generation_body(prompt, model, options or GenerationOptions())
 
         try:
             async with self._client.stream(
@@ -107,9 +126,46 @@ class OllamaClient:
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
-                    piece = _token(line)
+                    piece = answer_text(line)
                     if piece:
                         yield piece
+        except httpx.HTTPError as error:
+            raise ModelError(f"Ollama at {self.base_url} could not be reached: {error}") from error
+
+    async def generate_detailed(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        options: GenerationOptions | None = None,
+    ) -> AsyncIterator[tuple[str, str]]:
+        """Stream ``(channel, text)`` pairs, where channel is ``answer`` or ``thinking``.
+
+        Used by the evaluation, which has to account for reasoning separately:
+        reasoning tokens are invisible to the reader but are still paid for in
+        time and in the answer budget.
+        """
+        body = self._generation_body(prompt, model, options or GenerationOptions())
+
+        try:
+            async with self._client.stream(
+                "POST", "/api/generate", json=body, timeout=self._generation_timeout
+            ) as response:
+                if response.status_code != httpx.codes.OK:
+                    detail = (await response.aread()).decode("utf-8", "replace")[:300]
+                    raise ModelError(f"Ollama returned HTTP {response.status_code}: {detail}")
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    event = _event(line)
+                    if event is None:
+                        continue
+                    thinking = event.get("thinking")
+                    if isinstance(thinking, str) and thinking:
+                        yield "thinking", thinking
+                    answer = event.get("response")
+                    if isinstance(answer, str) and answer:
+                        yield "answer", answer
         except httpx.HTTPError as error:
             raise ModelError(f"Ollama at {self.base_url} could not be reached: {error}") from error
 
@@ -175,21 +231,29 @@ class OllamaClient:
         return payload
 
 
-def _token(line: str) -> str:
-    """The text carried by one streamed line, if any.
+def _event(line: str) -> dict[str, Any] | None:
+    """One streamed line as an object, or ``None`` if it cannot be read.
 
-    Ollama streams newline-delimited JSON objects. A malformed line is skipped
-    rather than ending the answer: losing one fragment is better than failing a
+    Ollama streams newline-delimited JSON. A malformed line is skipped rather
+    than ending the answer: losing one fragment is better than failing a
     response that is most of the way done.
     """
     try:
         event = json.loads(line)
     except ValueError:
-        return ""
+        return None
     if not isinstance(event, dict):
-        return ""
+        return None
     if error := event.get("error"):
         raise ModelError(str(error))
+    return event
+
+
+def answer_text(line: str) -> str:
+    """The answer text carried by one streamed line, excluding any reasoning."""
+    event = _event(line)
+    if event is None:
+        return ""
     piece = event.get("response")
     return piece if isinstance(piece, str) else ""
 

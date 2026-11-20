@@ -17,23 +17,24 @@ from typing import Protocol, runtime_checkable
 class GenerationOptions:
     """The generation budget, which on processor-only inference is the design.
 
-    Every field here exists to keep a small machine responsive: a short context,
-    a capped answer, and no hidden reasoning pass before the first token.
+    Every field here exists to keep a small machine responsive: a short context
+    and a capped answer.
+
+    There is deliberately no option to switch a model's reasoning off. Whether
+    reasoning can be disabled is a property of the model rather than of the
+    request — on the provider used here, asking for it to be off merely stops
+    the reasoning being separated from the answer. Choosing a model whose
+    reasoning does not have to be paid for is the real lever, and that is what
+    the answer evaluation measures.
     """
 
     num_ctx: int = 4096
     max_tokens: int = 512
     temperature: float = 0.1
     keep_alive: str = "30m"
-    think: bool = False
-    """Whether to let a model that has a reasoning mode use it.
-
-    Off by default. A reasoning pass on a model of this size spends most of the
-    answer budget before the reader sees a single token, and the task here —
-    restating retrieved text accurately — gains nothing from it.
-    """
 
     stop: tuple[str, ...] = field(default=())
+    """Sequences that end generation early, if the provider supports them."""
 
 
 @dataclass(frozen=True)
