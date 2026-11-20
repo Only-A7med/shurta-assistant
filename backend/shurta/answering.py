@@ -1,14 +1,12 @@
 """The answer pipeline: guard, retrieve, generate, cite.
 
-This is the whole flow in one place, independent of how it is delivered, so the
-API and the evaluation exercise the same behaviour rather than two similar
-versions of it.
+The whole flow in one place, independent of how it is delivered, so the API and
+the evaluation exercise the same behaviour.
 
-The order is the point. The guard runs before retrieval and before any model
-call, so an emergency costs nothing and cannot be mishandled. Retrieval runs
-next, and when nothing it finds is relevant enough the pipeline answers from a
-fixed response rather than asking a model to work from an empty context, which
-is where a model of this size would start inventing.
+The order matters. The guard runs before retrieval and before any model call, so
+an emergency costs nothing. When nothing retrieved is relevant enough the
+pipeline answers from a fixed response rather than letting a small model work
+from an empty context.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ from enum import StrEnum
 
 from shurta.arabic import detect_language
 from shurta.guardrails import Intent, classify, emergency_response
-from shurta.llm.base import GenerationOptions, ModelClient
+from shurta.llm.base import GenerationOptions, GenerationStats, ModelClient
 from shurta.models import Language
 from shurta.prompting import (
     Citation,
@@ -31,27 +29,14 @@ from shurta.prompting import (
 )
 from shurta.retrieval.hybrid import HybridRetriever, RetrievalResult
 
-#: Cosine similarity below which nothing retrieved is close enough to be worth
-#: a model call, and the fixed "not in my information" response is used instead.
+#: Cosine similarity below which nothing retrieved is worth a model call, and
+#: the fixed "not in my information" response is used instead.
 #:
-#: Measured on the evaluation set rather than chosen. Over the 100 answerable
-#: questions the closest passage scored 0.526 at worst and 0.697 at the median;
-#: over the out-of-scope questions it ranged from 0.355 to 0.566. The two
-#: distributions overlap, and honestly so — "how do I renew my driving licence"
-#: really is close to the traffic services in the corpus.
-#:
-#: So the floor is set below every answerable question rather than between the
-#: two groups. At 0.50 it rejects no question the corpus can answer and catches
-#: four of the six out-of-scope ones before any model runs. The remaining two
-#: are the genuinely adjacent government services, and those are left to the
-#: prompt, which can see the passages and say they cover something else. A
-#: higher floor would start refusing questions the corpus does answer, which is
-#: the worse failure.
-#:
-#: The fused retrieval score is deliberately not used for this: it is built from
-#: rank positions, so the best passage scores near the maximum regardless of
-#: relevance. Measured, out-of-scope questions scored *higher* on it than most
-#: answerable ones.
+#: Measured, not chosen: answerable questions' closest passage scored 0.526 to
+#: 0.804, out-of-scope ones 0.355 to 0.566. The floor sits below every
+#: answerable question, so it rejects nothing the corpus can answer and still
+#: catches four of six out-of-scope questions before any model runs. The fused
+#: score cannot do this job — it encodes rank alone. See docs/architecture.md.
 SIMILARITY_FLOOR = 0.50
 
 
@@ -76,6 +61,8 @@ class AnswerContext:
     prompt: str = ""
     fixed_text: str = ""
     emergency_numbers: dict[str, str] = field(default_factory=dict)
+    stats: GenerationStats | None = None
+    """Set once generation finishes, from what the provider reported."""
 
     @property
     def needs_model(self) -> bool:
@@ -93,7 +80,26 @@ class Answer:
     output_tokens: int = 0
 
     @property
+    def stats(self) -> GenerationStats | None:
+        return self.context.stats
+
+    @property
+    def prompt_tokens(self) -> int:
+        return self.context.stats.prompt_tokens if self.context.stats else 0
+
+    @property
+    def prompt_ms(self) -> float:
+        """How long the provider spent reading the prompt, which is most of the wait."""
+        return self.context.stats.prompt_ms if self.context.stats else 0.0
+
+    @property
+    def load_ms(self) -> float:
+        return self.context.stats.load_ms if self.context.stats else 0.0
+
+    @property
     def tokens_per_second(self) -> float:
+        if self.context.stats and self.context.stats.tokens_per_second:
+            return self.context.stats.tokens_per_second
         generating = self.total_ms - self.first_token_ms
         if generating <= 0 or self.output_tokens <= 1:
             return 0.0
@@ -170,10 +176,13 @@ class AnswerPipeline:
             yield context.fixed_text
             return
 
-        async for piece in self.client.generate(
+        async for chunk in self.client.generate(
             context.prompt, model=self.model, options=self.options
         ):
-            yield piece
+            if chunk.stats is not None:
+                context.stats = chunk.stats
+            if chunk.text:
+                yield chunk.text
 
     async def answer(self, question: str) -> Answer:
         """Run the whole pipeline and collect the answer, with timings."""

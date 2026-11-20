@@ -8,14 +8,16 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from shurta.llm.base import GenerationOptions
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    """Everything that can be configured without editing code.
+    """Everything configurable without editing code.
 
-    Defaults are chosen so that a clone with no ``.env`` file at all behaves
-    sensibly against an Ollama instance on the same machine.
+    The defaults work against an Ollama instance on the same machine, with no
+    ``.env`` file at all.
     """
 
     model_config = SettingsConfigDict(
@@ -36,8 +38,14 @@ class Settings(BaseSettings):
     keep_alive: str = "30m"
     warm_model_on_startup: bool = True
 
+    max_passage_chars: int | None = Field(default=None, ge=100)
+    """Longest passage placed in a prompt, or ``None`` to send it whole."""
+
+    num_thread: int | None = None
+    """Generation threads, or ``None`` to leave the provider's own choice."""
+
     # Request timeouts, in seconds. Processor-only generation is slow to start,
-    # so the generation timeout is deliberately generous.
+    # so the generation timeout is generous.
     embedding_timeout: float = 120.0
     generation_timeout: float = 300.0
 
@@ -67,10 +75,19 @@ class Settings(BaseSettings):
     def resolve(self, path: Path) -> Path:
         """Turn a possibly relative configured path into an absolute one.
 
-        Relative paths are taken against the repository root rather than the
-        working directory, so the commands behave the same wherever they run.
+        Relative paths are taken against the repository root, not the working
+        directory, so the commands behave the same wherever they run.
         """
         return path if path.is_absolute() else REPOSITORY_ROOT / path
+
+    def generation_options(self) -> GenerationOptions:
+        """The configured generation budget."""
+        return GenerationOptions(
+            num_ctx=self.num_ctx,
+            max_tokens=self.max_answer_tokens,
+            keep_alive=self.keep_alive,
+            num_thread=self.num_thread,
+        )
 
     @property
     def services_file(self) -> Path:

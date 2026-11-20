@@ -1,9 +1,8 @@
 """What the rest of the project needs from a model provider.
 
-Only this interface is used anywhere outside :mod:`shurta.llm`, which keeps two
-things possible: swapping Ollama for another provider without touching the
-retrieval or the API, and running the whole test suite against a stand-in
-instead of a real model.
+Only this interface is used outside :mod:`shurta.llm`, so a provider can be
+swapped without touching retrieval or the API, and the tests can run against a
+stand-in.
 """
 
 from __future__ import annotations
@@ -15,17 +14,11 @@ from typing import Protocol, runtime_checkable
 
 @dataclass(frozen=True)
 class GenerationOptions:
-    """The generation budget, which on processor-only inference is the design.
+    """The generation budget: a short context and a capped answer.
 
-    Every field here exists to keep a small machine responsive: a short context
-    and a capped answer.
-
-    There is deliberately no option to switch a model's reasoning off. Whether
-    reasoning can be disabled is a property of the model rather than of the
-    request — on the provider used here, asking for it to be off merely stops
-    the reasoning being separated from the answer. Choosing a model whose
-    reasoning does not have to be paid for is the real lever, and that is what
-    the answer evaluation measures.
+    There is no option to switch a model's reasoning off. Whether reasoning can
+    be disabled is a property of the model, not of the request; on this provider
+    asking for it off only stops the reasoning being separated from the answer.
     """
 
     num_ctx: int = 4096
@@ -33,8 +26,36 @@ class GenerationOptions:
     temperature: float = 0.1
     keep_alive: str = "30m"
 
+    num_thread: int | None = None
+    """Generation threads, or ``None`` to leave the provider's own choice."""
+
     stop: tuple[str, ...] = field(default=())
     """Sequences that end generation early, if the provider supports them."""
+
+
+@dataclass(frozen=True)
+class GenerationStats:
+    """What the provider reports about one completed generation."""
+
+    prompt_tokens: int = 0
+    prompt_ms: float = 0.0
+    output_tokens: int = 0
+    output_ms: float = 0.0
+    load_ms: float = 0.0
+
+    @property
+    def tokens_per_second(self) -> float:
+        if self.output_ms <= 0 or self.output_tokens <= 0:
+            return 0.0
+        return self.output_tokens / (self.output_ms / 1000)
+
+
+@dataclass(frozen=True)
+class GenerationChunk:
+    """One streamed piece of an answer; the last one carries the statistics."""
+
+    text: str = ""
+    stats: GenerationStats | None = None
 
 
 @dataclass(frozen=True)
@@ -64,15 +85,15 @@ class ModelClient(Protocol):
         *,
         model: str | None = None,
         options: GenerationOptions | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream an answer token by token."""
+    ) -> AsyncIterator[GenerationChunk]:
+        """Stream an answer piece by piece."""
         ...
 
     async def status(self) -> ModelStatus:
         """Whether the provider is reachable, and which models it holds."""
         ...
 
-    async def warm(self, model: str | None = None) -> None:
+    async def warm(self, model: str | None = None, keep_alive: str | None = None) -> None:
         """Load a model into memory so the first real question does not wait."""
         ...
 

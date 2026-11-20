@@ -1,9 +1,8 @@
 """Tests for the Ollama client, against a mock transport rather than a provider.
 
-The streaming behaviour is the part worth testing carefully. Reasoning leaking
-into the answer was a real defect — answers opened with "Okay, the user is
-asking…" and ran out of budget before saying anything — and it is invisible
-unless something asserts on the separation.
+The streaming behaviour is what needs the care. Reasoning leaking into the
+answer was a real defect, and it is invisible unless something asserts on the
+separation.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ import httpx
 import pytest
 
 from shurta.llm.base import GenerationOptions, ModelClient
-from shurta.llm.ollama import OllamaClient, answer_text, model_matches
+from shurta.llm.ollama import OllamaClient, answer_text, generation_stats, model_matches
 
 
 def _lines(*events: dict[str, object]) -> bytes:
@@ -124,10 +123,10 @@ class TestGeneration:
 
         client = _client(httpx.MockTransport(handler))
         try:
-            pieces = [piece async for piece in client.generate("prompt")]
+            pieces = [chunk.text async for chunk in client.generate("prompt")]
         finally:
             await client.close()
-        assert pieces == ["The fee ", "is AED 200"]
+        assert [piece for piece in pieces if piece] == ["The fee ", "is AED 200"]
 
     async def test_reasoning_is_not_part_of_the_answer(self) -> None:
         """The defect this guards against produced answers made of reasoning."""
@@ -145,7 +144,7 @@ class TestGeneration:
 
         client = _client(httpx.MockTransport(handler))
         try:
-            answer = "".join([piece async for piece in client.generate("prompt")])
+            answer = "".join([chunk.text async for chunk in client.generate("prompt")])
         finally:
             await client.close()
         assert answer == "AED 200 [1]"
@@ -163,7 +162,7 @@ class TestGeneration:
 
         client = _client(httpx.MockTransport(handler))
         try:
-            [piece async for piece in client.generate("prompt")]
+            [chunk async for chunk in client.generate("prompt")]
         finally:
             await client.close()
         assert "think" not in sent[0]
@@ -178,13 +177,32 @@ class TestGeneration:
         client = _client(httpx.MockTransport(handler))
         try:
             options = GenerationOptions(num_ctx=2048, max_tokens=128, keep_alive="5m")
-            [piece async for piece in client.generate("prompt", options=options)]
+            [chunk async for chunk in client.generate("prompt", options=options)]
         finally:
             await client.close()
 
         body = sent[0]
         assert body["keep_alive"] == "5m"
         assert body["options"] == {"num_ctx": 2048, "num_predict": 128, "temperature": 0.1}
+
+    async def test_a_thread_count_is_only_sent_when_one_is_configured(self) -> None:
+        sent: list[dict[str, object]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, content=_lines({"response": "ok", "done": True}))
+
+        client = _client(httpx.MockTransport(handler))
+        try:
+            async for _chunk in client.generate("prompt"):
+                pass
+            async for _chunk in client.generate("prompt", options=GenerationOptions(num_thread=8)):
+                pass
+        finally:
+            await client.close()
+
+        assert "num_thread" not in sent[0]["options"]  # type: ignore[operator]
+        assert sent[1]["options"]["num_thread"] == 8  # type: ignore[index]
 
     async def test_a_named_model_overrides_the_default(self) -> None:
         sent: list[dict[str, object]] = []
@@ -195,7 +213,7 @@ class TestGeneration:
 
         client = _client(httpx.MockTransport(handler))
         try:
-            [piece async for piece in client.generate("prompt", model="other-model")]
+            [chunk async for chunk in client.generate("prompt", model="other-model")]
         finally:
             await client.close()
         assert sent[0]["model"] == "other-model"
@@ -211,7 +229,7 @@ class TestGeneration:
 
         client = _client(httpx.MockTransport(handler))
         try:
-            answer = "".join([piece async for piece in client.generate("prompt")])
+            answer = "".join([chunk.text async for chunk in client.generate("prompt")])
         finally:
             await client.close()
         assert answer == "first second"
@@ -225,7 +243,7 @@ class TestGeneration:
         client = _client(httpx.MockTransport(handler))
         try:
             with pytest.raises(ModelError, match="model not found"):
-                [piece async for piece in client.generate("prompt")]
+                [chunk async for chunk in client.generate("prompt")]
         finally:
             await client.close()
 
@@ -238,7 +256,7 @@ class TestGeneration:
         client = _client(httpx.MockTransport(handler))
         try:
             with pytest.raises(ModelError, match="HTTP 404"):
-                [piece async for piece in client.generate("prompt")]
+                [chunk async for chunk in client.generate("prompt")]
         finally:
             await client.close()
 
@@ -251,7 +269,7 @@ class TestGeneration:
         client = _client(httpx.MockTransport(handler))
         try:
             with pytest.raises(ModelError, match=r"ollama.invalid"):
-                [piece async for piece in client.generate("prompt")]
+                [chunk async for chunk in client.generate("prompt")]
         finally:
             await client.close()
 
@@ -268,6 +286,47 @@ class TestAnswerText:
 
     def test_a_non_object_line_yields_nothing(self) -> None:
         assert answer_text("[1, 2, 3]") == ""
+
+
+class TestGenerationStats:
+    async def test_the_final_event_carries_the_prompt_and_output_counts(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=_lines(
+                    {"response": "AED 200", "done": False},
+                    {
+                        "response": "",
+                        "done": True,
+                        "prompt_eval_count": 912,
+                        "prompt_eval_duration": 8_400_000_000,
+                        "eval_count": 24,
+                        "eval_duration": 2_000_000_000,
+                        "load_duration": 15_000_000,
+                    },
+                ),
+            )
+
+        client = _client(httpx.MockTransport(handler))
+        try:
+            chunks = [chunk async for chunk in client.generate("prompt")]
+        finally:
+            await client.close()
+
+        stats = chunks[-1].stats
+        assert stats is not None
+        assert stats.prompt_tokens == 912
+        assert stats.prompt_ms == pytest.approx(8400.0)
+        assert stats.output_tokens == 24
+        assert stats.tokens_per_second == pytest.approx(12.0)
+        assert stats.load_ms == pytest.approx(15.0)
+
+    def test_an_unfinished_event_carries_none(self) -> None:
+        assert generation_stats({"response": "a", "done": False}) is None
+
+    def test_a_final_event_without_counts_carries_none(self) -> None:
+        """Some providers end the stream with nothing to report."""
+        assert generation_stats({"done": True}) is None
 
 
 class TestStatus:
@@ -329,6 +388,20 @@ class TestWarming:
         assert sent[0]["prompt"] == ""
         assert sent[0]["stream"] is False
         assert sent[0]["keep_alive"]
+
+    async def test_the_configured_residency_is_passed_through(self) -> None:
+        sent: list[dict[str, object]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json={"done": True})
+
+        client = _client(httpx.MockTransport(handler))
+        try:
+            await client.warm(keep_alive="2h")
+        finally:
+            await client.close()
+        assert sent[0]["keep_alive"] == "2h"
 
     async def test_a_named_model_can_be_warmed(self) -> None:
         sent: list[dict[str, object]] = []

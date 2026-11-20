@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from shurta.config import Settings
-from shurta.llm.base import ModelStatus
+from shurta.llm.base import GenerationChunk, GenerationStats, ModelStatus
 from shurta.models import Corpus
 
 FIXTURE_CORPUS = Path(__file__).resolve().parents[2] / "data" / "fixtures" / "services.json"
@@ -64,8 +64,8 @@ class FakeModelClient:
     """A stand-in for Ollama that never leaves the process.
 
     Satisfies :class:`~shurta.llm.base.ModelClient`. The answer it streams is
-    fixed per instance, split into pieces so that streaming behaviour and the
-    first-token timing are exercised rather than bypassed.
+    fixed per instance and split into pieces, so streaming and the first-token
+    timing are exercised rather than bypassed.
     """
 
     def __init__(
@@ -76,14 +76,17 @@ class FakeModelClient:
         available: tuple[str, ...] = ("qwen3:4b", "bge-m3:latest"),
         fail_after: int | None = None,
         reachable: bool = True,
+        stats: GenerationStats | None = None,
     ) -> None:
         self.answer = answer
         self.dimensions = dimensions
         self.available = available
         self.fail_after = fail_after
         self.reachable = reachable
+        self.stats = stats
         self.prompts: list[str] = []
         self.embedded: list[str] = []
+        self.options: list[object] = []
         self.warm_calls = 0
         self.closed = False
 
@@ -105,21 +108,23 @@ class FakeModelClient:
         *,
         model: str | None = None,
         options: object | None = None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[GenerationChunk]:
         from shurta.llm.base import ModelError
 
         self.prompts.append(prompt)
+        self.options.append(options)
         for position, piece in enumerate(self.answer.split(" ")):
             if self.fail_after is not None and position >= self.fail_after:
                 raise ModelError("the model stopped part way")
-            yield piece if position == 0 else f" {piece}"
+            yield GenerationChunk(text=piece if position == 0 else f" {piece}")
+        yield GenerationChunk(stats=self.stats or GenerationStats())
 
     async def status(self) -> ModelStatus:
         if not self.reachable:
             return ModelStatus(reachable=False, detail="connection refused")
         return ModelStatus(reachable=True, available_models=self.available)
 
-    async def warm(self, model: str | None = None) -> None:
+    async def warm(self, model: str | None = None, keep_alive: str | None = None) -> None:
         self.warm_calls += 1
 
     async def close(self) -> None:

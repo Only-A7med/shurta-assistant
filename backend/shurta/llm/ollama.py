@@ -1,23 +1,11 @@
 """The Ollama implementation of :class:`~shurta.llm.base.ModelClient`.
 
-Ollama runs on the host machine and serves both halves of the pipeline: the
-embedding model for retrieval and the instruction model for the answer. Nothing
-here reaches outside the machine it runs on.
+Ollama runs on the same machine and serves both the embedding model and the
+instruction model. Nothing here reaches outside that machine.
 
-One behaviour is worth stating plainly, because getting it wrong produces an
-answer that looks like a model talking to itself.
-
-Some instruction models reason before answering. Ollama reports that reasoning
-in a separate ``thinking`` field, and the answer in ``response``. The ``think``
-request parameter does **not** switch the reasoning off — it switches off
-Ollama's *separation* of it, after which the reasoning arrives in ``response``
-and is indistinguishable from the answer. Sending ``think: false`` to a model
-whose reasoning cannot be disabled therefore makes things worse, not better.
-
-So this client never sends ``think``. It lets Ollama separate the two and yields
-only ``response``, which is correct for a model that reasons and a no-op for one
-that does not. Whether a model's reasoning can be turned off at all is a
-property of the model, and the answer evaluation measures what it costs.
+This client never sends ``think``. That parameter does not disable a model's
+reasoning; it disables Ollama's separation of it, after which the reasoning
+arrives in ``response`` and cannot be told apart from the answer.
 """
 
 from __future__ import annotations
@@ -28,10 +16,15 @@ from typing import Any
 
 import httpx
 
-from shurta.llm.base import GenerationOptions, ModelError, ModelStatus
+from shurta.llm.base import (
+    GenerationChunk,
+    GenerationOptions,
+    GenerationStats,
+    ModelError,
+    ModelStatus,
+)
 
-#: Embedding batch size. The corpus is a few hundred passages, so this exists to
-#: keep a single request's memory use modest rather than to go faster.
+#: Embedding batch size, to keep one request's memory use modest.
 EMBED_BATCH_SIZE = 16
 
 
@@ -102,6 +95,8 @@ class OllamaClient:
                 "temperature": settings.temperature,
             },
         }
+        if settings.num_thread is not None:
+            body["options"]["num_thread"] = settings.num_thread
         if settings.stop:
             body["options"]["stop"] = list(settings.stop)
         return body
@@ -112,7 +107,7 @@ class OllamaClient:
         *,
         model: str | None = None,
         options: GenerationOptions | None = None,
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[GenerationChunk]:
         """Stream the answer, discarding any reasoning the model emits."""
         body = self._generation_body(prompt, model, options or GenerationOptions())
 
@@ -126,9 +121,14 @@ class OllamaClient:
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
-                    piece = answer_text(line)
-                    if piece:
-                        yield piece
+                    event = _event(line)
+                    if event is None:
+                        continue
+                    piece = event.get("response")
+                    text = piece if isinstance(piece, str) else ""
+                    stats = generation_stats(event)
+                    if text or stats is not None:
+                        yield GenerationChunk(text=text, stats=stats)
         except httpx.HTTPError as error:
             raise ModelError(f"Ollama at {self.base_url} could not be reached: {error}") from error
 
@@ -149,11 +149,11 @@ class OllamaClient:
                     names.append(entry["model"])
         return ModelStatus(reachable=True, available_models=tuple(names))
 
-    async def warm(self, model: str | None = None) -> None:
+    async def warm(self, model: str | None = None, keep_alive: str | None = None) -> None:
         """Load a model now, so the first question does not pay for it.
 
-        A zero-length generation is enough: Ollama loads the model and keeps it
-        resident for the configured period without producing any tokens.
+        A zero-length generation is enough: Ollama loads the model and holds it
+        resident without producing any tokens.
         """
         await self._post_json(
             "/api/generate",
@@ -161,7 +161,7 @@ class OllamaClient:
                 "model": model or self.generation_model,
                 "prompt": "",
                 "stream": False,
-                "keep_alive": GenerationOptions().keep_alive,
+                "keep_alive": keep_alive or GenerationOptions().keep_alive,
             },
             timeout=self._generation_timeout,
         )
@@ -197,9 +197,8 @@ class OllamaClient:
 def _event(line: str) -> dict[str, Any] | None:
     """One streamed line as an object, or ``None`` if it cannot be read.
 
-    Ollama streams newline-delimited JSON. A malformed line is skipped rather
-    than ending the answer: losing one fragment is better than failing a
-    response that is most of the way done.
+    A malformed line is skipped: losing one fragment beats failing an answer
+    that is nearly complete.
     """
     try:
         event = json.loads(line)
@@ -221,12 +220,41 @@ def answer_text(line: str) -> str:
     return piece if isinstance(piece, str) else ""
 
 
+def _milliseconds(event: dict[str, Any], key: str) -> float:
+    """One nanosecond duration from a streamed event, in milliseconds."""
+    value = event.get(key)
+    return value / 1_000_000 if isinstance(value, int | float) else 0.0
+
+
+def _count(event: dict[str, Any], key: str) -> int:
+    value = event.get(key)
+    return int(value) if isinstance(value, int | float) else 0
+
+
+def generation_stats(event: dict[str, Any]) -> GenerationStats | None:
+    """The statistics on Ollama's final streamed event, if it carries any.
+
+    Prompt processing dominates time to first token on processor-only
+    inference, so these counts are what the latency work is measured against.
+    """
+    if not event.get("done"):
+        return None
+    if "prompt_eval_count" not in event and "eval_count" not in event:
+        return None
+    return GenerationStats(
+        prompt_tokens=_count(event, "prompt_eval_count"),
+        prompt_ms=_milliseconds(event, "prompt_eval_duration"),
+        output_tokens=_count(event, "eval_count"),
+        output_ms=_milliseconds(event, "eval_duration"),
+        load_ms=_milliseconds(event, "load_duration"),
+    )
+
+
 def model_matches(available: tuple[str, ...], wanted: str) -> bool:
     """Whether a wanted model is present, allowing for the implied ``:latest``.
 
-    ``bge-m3`` and ``bge-m3:latest`` are the same model, and the two spellings
-    appear in different places, so a health check must not report a model
-    missing merely because of the tag.
+    ``bge-m3`` and ``bge-m3:latest`` are the same model, so a health check must
+    not report one missing over the tag alone.
     """
     candidates = {wanted, f"{wanted}:latest", wanted.removesuffix(":latest")}
     return any(name in candidates for name in available)
