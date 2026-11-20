@@ -14,7 +14,7 @@ import asyncio
 import json
 import re
 import statistics
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +40,7 @@ RESULTS_DIR = REPOSITORY_ROOT / "eval"
 RESULTS_MARKDOWN = RESULTS_DIR / "results.md"
 RESULTS_JSON = RESULTS_DIR / "answer-results.json"
 SCORECARD_DIR = RESULTS_DIR / "scorecards"
+LATENCY_NOTE = RESULTS_DIR / "latency-note.md"
 SUBSET_DIR = RESULTS_DIR / "subsets"
 
 #: The selection name for a run over the whole question set.
@@ -443,8 +444,21 @@ async def evaluate_model(
     selection: str = FULL_SELECTION,
     note: str = "",
     progress: bool = True,
+    scored: Mapping[str, ItemResult] | None = None,
+    after_each: Callable[[ModelResult], None] | None = None,
 ) -> ModelResult:
-    """Score one model over the selected questions."""
+    """Score one model over the selected questions.
+
+    Questions already in ``scored`` are carried over rather than run again, and
+    ``after_each`` is called as every question finishes, so an interrupted run
+    resumes where it stopped rather than from the beginning.
+    """
+    already = dict(scored or {})
+    result = ModelResult(model=model, selection=selection, note=note)
+    pending = [question for question in questions if question.id not in already]
+    if not pending:
+        result.items = [already[question.id] for question in questions if question.id in already]
+        return result
 
     async def embed(query: str) -> list[float]:
         return (await client.embed([query]))[0]
@@ -462,11 +476,15 @@ async def evaluate_model(
     # first token, which would otherwise dominate the percentiles.
     await client.warm(model, keep_alive=settings.keep_alive)
 
-    result = ModelResult(model=model, selection=selection, note=note)
     for position, question in enumerate(questions, start=1):
+        if question.id in already:
+            result.items.append(already[question.id])
+            continue
         result.items.append(await score_question(pipeline, question, key_facts.get(question.id)))
+        if after_each is not None:
+            after_each(result)
         if progress and position % 10 == 0:
-            print(f"  {model}: {position}/{len(questions)}")
+            print(f"  {model}: {position}/{len(questions)}", flush=True)
     return result
 
 
@@ -658,6 +676,12 @@ def as_markdown(results: Sequence[ModelResult], *, chunks_indexed: int) -> str:
         lines += [""]
         lines += [f"- `{result.model}`: {result.note}" for result in notes]
 
+    # The record of the latency work is written by hand and inlined here, so
+    # this file stays the one place the speed figures live even though it is
+    # regenerated on every run.
+    if LATENCY_NOTE.exists():
+        lines += ["", LATENCY_NOTE.read_text(encoding="utf-8").strip()]
+
     lines += [
         "",
         "## Composite score",
@@ -765,18 +789,30 @@ def main(
             generation_timeout=settings.generation_timeout,
             keep_alive=settings.keep_alive,
         )
+
+        def save(partial: ModelResult) -> None:
+            write_scorecard(partial, settings=settings)
+
         try:
             collected: list[ModelResult] = []
             for model in candidates:
                 existing = None if force else reuse_scorecard(model, selection)
+                wanted = {question.id for question in questions}
+                scored: dict[str, ItemResult] = {}
                 if existing is not None:
-                    print(
-                        f"Reusing the scorecard for {model} ({existing.selection}); "
-                        "--force re-runs it."
-                    )
-                    existing.note = labels.get(model, existing.note)
-                    collected.append(existing)
-                    continue
+                    if existing.selection != selection or wanted <= {
+                        item.id for item in existing.items
+                    }:
+                        print(
+                            f"Reusing the scorecard for {model} ({existing.selection}); "
+                            "--force re-runs it."
+                        )
+                        existing.note = labels.get(model, existing.note)
+                        collected.append(existing)
+                        continue
+                    # A partial scorecard: carry over what is scored already.
+                    scored = {item.id: item for item in existing.items if item.id in wanted}
+                    print(f"Resuming {model}: {len(scored)} of {len(questions)} already scored.")
 
                 print(f"Evaluating {model} over {len(questions)} questions ({selection})...")
                 result = await evaluate_model(
@@ -788,6 +824,10 @@ def main(
                     settings,
                     selection=selection,
                     note=labels.get(model, ""),
+                    scored=scored,
+                    # Written after every question, so an interrupted run loses
+                    # one question rather than the whole model.
+                    after_each=save,
                 )
                 collected.append(result)
                 print(f"  wrote {write_scorecard(result, settings=settings)}")

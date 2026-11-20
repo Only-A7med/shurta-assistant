@@ -27,6 +27,7 @@ from shurta.evaluation.answers import (
     choose_default,
     composite,
     count_facts,
+    evaluate_model,
     first_per_group,
     read_scorecard,
     reuse_scorecard,
@@ -444,6 +445,60 @@ class TestScorecards:
             settings=settings,
         )
         assert ":" not in written.name
+
+
+class TestResumingPartway:
+    """An interrupted run has to resume where it stopped, not from the start."""
+
+    @pytest.fixture
+    def questions(self) -> list[Question]:
+        return load_questions()[:6]
+
+    async def _run(
+        self,
+        corpus: Corpus,
+        settings: Settings,
+        questions: list[Question],
+        scored: dict[str, ItemResult],
+        saves: list[int],
+    ) -> ModelResult:
+        client = FakeModelClient("The fee is 75 dirhams [1].")
+        chunks = chunk_corpus(corpus)
+        vectors = np.asarray([client.vector(chunk.text) for chunk in chunks], dtype=np.float32)
+        index = SearchIndex.create(chunks, vectors, embedding_model="stand-in")
+        return await evaluate_model(
+            index,
+            client,  # type: ignore[arg-type]
+            "stand-in",
+            questions,
+            {},
+            settings,
+            progress=False,
+            scored=scored,
+            after_each=lambda partial: saves.append(len(partial.items)),
+        )
+
+    async def test_already_scored_questions_are_not_run_again(
+        self, corpus: Corpus, settings: Settings, questions: list[Question]
+    ) -> None:
+        first = questions[0]
+        carried = item(id=first.id, facts_found=1, facts_expected=1)
+        saves: list[int] = []
+        result = await self._run(corpus, settings, questions, {first.id: carried}, saves)
+
+        assert [entry.id for entry in result.items] == [question.id for question in questions]
+        assert result.items[0] is carried
+        # One save per question actually run, and the carried one is not re-run.
+        assert saves == list(range(2, len(questions) + 1))
+
+    async def test_nothing_left_to_run_needs_no_model_at_all(
+        self, corpus: Corpus, settings: Settings, questions: list[Question]
+    ) -> None:
+        scored = {question.id: item(id=question.id) for question in questions}
+        saves: list[int] = []
+        result = await self._run(corpus, settings, questions, scored, saves)
+        assert len(result.items) == len(questions)
+        assert saves == []
 
 
 class TestChoosingTheDefault:
