@@ -168,25 +168,6 @@ class TestGeneration:
             await client.close()
         assert "think" not in sent[0]
 
-    async def test_reasoning_can_still_be_observed_when_it_is_wanted(self) -> None:
-        """The evaluation has to account for reasoning it does not display."""
-
-        def handler(_request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                200,
-                content=_lines(
-                    {"response": "", "thinking": "hmm", "done": False},
-                    {"response": "AED 200", "done": True},
-                ),
-            )
-
-        client = _client(httpx.MockTransport(handler))
-        try:
-            observed = [pair async for pair in client.generate_detailed("prompt")]
-        finally:
-            await client.close()
-        assert observed == [("thinking", "hmm"), ("answer", "AED 200")]
-
     async def test_the_budget_is_passed_through(self) -> None:
         sent: list[dict[str, object]] = []
 

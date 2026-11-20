@@ -132,43 +132,6 @@ class OllamaClient:
         except httpx.HTTPError as error:
             raise ModelError(f"Ollama at {self.base_url} could not be reached: {error}") from error
 
-    async def generate_detailed(
-        self,
-        prompt: str,
-        *,
-        model: str | None = None,
-        options: GenerationOptions | None = None,
-    ) -> AsyncIterator[tuple[str, str]]:
-        """Stream ``(channel, text)`` pairs, where channel is ``answer`` or ``thinking``.
-
-        Used by the evaluation, which has to account for reasoning separately:
-        reasoning tokens are invisible to the reader but are still paid for in
-        time and in the answer budget.
-        """
-        body = self._generation_body(prompt, model, options or GenerationOptions())
-
-        try:
-            async with self._client.stream(
-                "POST", "/api/generate", json=body, timeout=self._generation_timeout
-            ) as response:
-                if response.status_code != httpx.codes.OK:
-                    detail = (await response.aread()).decode("utf-8", "replace")[:300]
-                    raise ModelError(f"Ollama returned HTTP {response.status_code}: {detail}")
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
-                    event = _event(line)
-                    if event is None:
-                        continue
-                    thinking = event.get("thinking")
-                    if isinstance(thinking, str) and thinking:
-                        yield "thinking", thinking
-                    answer = event.get("response")
-                    if isinstance(answer, str) and answer:
-                        yield "answer", answer
-        except httpx.HTTPError as error:
-            raise ModelError(f"Ollama at {self.base_url} could not be reached: {error}") from error
-
     # --- health --------------------------------------------------------------
 
     async def status(self) -> ModelStatus:

@@ -33,7 +33,7 @@ METHODS = ("bm25", "dense", "hybrid")
 
 METHOD_NAMES = {
     "bm25": "Keyword only (BM25)",
-    "dense": "Vector only (bge-m3)",
+    "dense": "Vector only",
     "hybrid": "Hybrid, fused",
 }
 
