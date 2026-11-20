@@ -24,9 +24,17 @@ frontend/dist/
 .env
 .env.local
 
-# Data: raw responses are a local cache, the index is a build artefact
+# The knowledge base is built locally from the official public site and is not
+# redistributed here: raw responses are a local cache, the processed corpus and
+# the search index are build artefacts. Only the original fixtures used by the
+# tests are committed.
 data/raw/
+data/processed/
 data/index/
+
+# Evaluation key facts are derived from the official content, so they stay local
+# too. Only the questions and the aggregate scores are committed.
+eval/key_facts.local.jsonl
 
 # Editors / OS
 .vscode/

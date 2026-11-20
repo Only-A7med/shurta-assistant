@@ -1,0 +1,344 @@
+{
+ "collected_at": "2026-11-20T09:00:00+00:00",
+ "source": "Invented catalogue for a fictional city police force, written for this repository's tests and continuous integration. Not real, and not taken from any official website.",
+ "services": [
+  {
+   "id": "good-conduct-certificate",
+   "name_en": "Good Conduct Certificate",
+   "name_ar": "شهادة حسن السيرة والسلوك",
+   "category": {
+    "en": "Certificates",
+    "ar": "الشهادات"
+   },
+   "description": {
+    "en": "A certificate stating that the applicant has no recorded offence in Noor Emirate, issued for presentation to employers and study programmes.",
+    "ar": "شهادة تثبت خلو سجل مقدم الطلب من أي مخالفة مسجلة في إمارة نور، تصدر لتقديمها إلى جهات العمل وبرامج الدراسة."
+   },
+   "eligibility": {
+    "en": "Available to: Individuals\nThe applicant must be at least 18 years old.\nThe applicant must have held a residence permit in Noor Emirate for at least 90 days.",
+    "ar": "متاح لـ: الأفراد\nيجب أن يكون مقدم الطلب قد أتم 18 عاماً.\nيجب أن يكون مقدم الطلب حاملاً لتصريح إقامة في إمارة نور لمدة 90 يوماً على الأقل."
+   },
+   "required_documents": {
+    "en": [
+     "Noor identity card, valid or expired",
+     "Personal photograph with a plain background",
+     "Applying from abroad — copy of the passport page carrying the entry stamp",
+     "Applying from abroad — copy of the previous residence permit"
+    ],
+    "ar": [
+     "بطاقة هوية نور، سارية أو منتهية الصلاحية",
+     "صورة شخصية بخلفية سادة",
+     "التقديم من خارج الإمارة — صورة من صفحة الجواز التي تحمل ختم الدخول",
+     "التقديم من خارج الإمارة — صورة من تصريح الإقامة السابق"
+    ]
+   },
+   "fees": {
+    "en": "Citizen: 75 NRD\nResident: 150 NRD\nApplying from abroad: 240 NRD\nService and records fee: 15 NRD\nPayment methods: Debit card, Credit card, Cash",
+    "ar": "المواطن: 75 درهماً نورياً\nالمقيم: 150 درهماً نورياً\nالتقديم من خارج الإمارة: 240 درهماً نورياً\nرسوم الخدمة والسجلات: 15 درهماً نورياً\nطرق الدفع: بطاقة خصم, بطاقة ائتمان, نقداً"
+   },
+   "processing_time": {
+    "en": "Processing time: 4 working days\nDigital channels: 24/7\nService centres: 8:00 - 20:00",
+    "ar": "مدة الإنجاز: 4 أيام عمل\nالقنوات الرقمية: 24/7\nمراكز الخدمة: 8:00 - 20:00"
+   },
+   "channels": {
+    "en": [
+     "Noor Police app",
+     "Noor Police website",
+     "Smart service station",
+     "Service centre"
+    ],
+    "ar": [
+     "تطبيق شرطة نور",
+     "الموقع الإلكتروني لشرطة نور",
+     "محطة خدمة ذكية",
+     "مركز خدمة"
+    ]
+   },
+   "steps": {
+    "en": [
+     "Sign in to the Noor Police app with your identity card number.",
+     "Choose Certificates, then Good Conduct Certificate.",
+     "Upload the personal photograph and pay the fee.",
+     "Collect the certificate from your account once it is issued."
+    ],
+    "ar": [
+     "سجّل الدخول إلى تطبيق شرطة نور برقم بطاقة الهوية.",
+     "اختر الشهادات ثم شهادة حسن السيرة والسلوك.",
+     "أرفق الصورة الشخصية وادفع الرسوم.",
+     "استلم الشهادة من حسابك بعد إصدارها."
+    ]
+   },
+   "source_urls": {
+    "en": "https://example.invalid/noor-police/services/good-conduct-certificate?lng=en",
+    "ar": "https://example.invalid/noor-police/services/good-conduct-certificate?lng=ar"
+   },
+   "collected_at": "2026-11-20T09:00:00+00:00"
+  },
+  {
+   "id": "traffic-fine-payment",
+   "name_en": "Traffic Fine Inquiry and Payment",
+   "name_ar": "الاستعلام عن المخالفات المرورية ودفعها",
+   "category": {
+    "en": "Traffic",
+    "ar": "المرور"
+   },
+   "description": {
+    "en": "Check and pay traffic fines recorded against a vehicle plate, a driving licence or a traffic file number, and settle them in instalments where the total exceeds 2,000 NRD.",
+    "ar": "الاستعلام عن المخالفات المرورية المسجلة على رقم المركبة أو رخصة القيادة أو رقم الملف المروري ودفعها، مع إمكانية التقسيط إذا تجاوز المجموع 2000 درهم نوري."
+   },
+   "eligibility": {
+    "en": "Available to: Individuals, Business sector\nInstalments are available only when the outstanding total exceeds 2,000 NRD.\nCards issued outside Noor Emirate are not accepted for online payment.",
+    "ar": "متاح لـ: الأفراد, قطاع الأعمال\nالتقسيط متاح فقط إذا تجاوز المبلغ المستحق 2000 درهم نوري.\nالبطاقات الصادرة من خارج إمارة نور غير مقبولة للدفع الإلكتروني."
+   },
+   "required_documents": {
+    "en": [],
+    "ar": []
+   },
+   "fees": {
+    "en": "The amount depends on the fine issued\nService fee per fine: 5 NRD\nPayment methods: Debit card, Credit card, Cash",
+    "ar": "يعتمد المبلغ على المخالفة المحررة\nرسوم الخدمة لكل مخالفة: 5 دراهم نورية\nطرق الدفع: بطاقة خصم, بطاقة ائتمان, نقداً"
+   },
+   "processing_time": {
+    "en": "Processing time: Instant\nDigital channels: 24/7",
+    "ar": "مدة الإنجاز: فوري\nالقنوات الرقمية: 24/7"
+   },
+   "channels": {
+    "en": [
+     "Noor Police app",
+     "Noor Police website",
+     "Call centre 905",
+     "Smart service station"
+    ],
+    "ar": [
+     "تطبيق شرطة نور",
+     "الموقع الإلكتروني لشرطة نور",
+     "مركز الاتصال 905",
+     "محطة خدمة ذكية"
+    ]
+   },
+   "steps": {
+    "en": [],
+    "ar": []
+   },
+   "source_urls": {
+    "en": "https://example.invalid/noor-police/services/traffic-fine-payment?lng=en",
+    "ar": "https://example.invalid/noor-police/services/traffic-fine-payment?lng=ar"
+   },
+   "collected_at": "2026-11-20T09:00:00+00:00"
+  },
+  {
+   "id": "minor-accident-report",
+   "name_en": "Minor Accident Report",
+   "name_ar": "بلاغ حادث بسيط",
+   "category": {
+    "en": "Reports",
+    "ar": "البلاغات"
+   },
+   "description": {
+    "en": "Report a traffic accident with no injuries and obtain the report needed by a workshop or an insurer, without waiting for a patrol at the scene.",
+    "ar": "الإبلاغ عن حادث مروري دون إصابات والحصول على التقرير المطلوب من الورشة أو شركة التأمين، دون انتظار دورية في موقع الحادث."
+   },
+   "eligibility": {
+    "en": "Available to: Individuals\nNo person may have been injured in the accident.\nThe vehicles involved must both be registered in Noor Emirate.\nThe report must be submitted within 24 hours of the accident.",
+    "ar": "متاح لـ: الأفراد\nيشترط عدم وقوع إصابات في الحادث.\nيشترط أن تكون المركبتان مسجلتين في إمارة نور.\nيجب تقديم البلاغ خلال 24 ساعة من وقوع الحادث."
+   },
+   "required_documents": {
+    "en": [
+     "Driving licence of each driver",
+     "Vehicle registration card of each vehicle",
+     "Photographs of the damage to both vehicles"
+    ],
+    "ar": [
+     "رخصة قيادة كل سائق",
+     "بطاقة تسجيل كل مركبة",
+     "صور للأضرار في كلتا المركبتين"
+    ]
+   },
+   "fees": {
+    "en": "No fee is charged for this service",
+    "ar": "لا تُستوفى رسوم على هذه الخدمة"
+   },
+   "processing_time": {
+    "en": "Processing time: 1 working day\nDigital channels: 24/7",
+    "ar": "مدة الإنجاز: يوم عمل واحد\nالقنوات الرقمية: 24/7"
+   },
+   "channels": {
+    "en": [
+     "Noor Police app",
+     "Noor Police website",
+     "Call centre 905"
+    ],
+    "ar": [
+     "تطبيق شرطة نور",
+     "الموقع الإلكتروني لشرطة نور",
+     "مركز الاتصال 905"
+    ]
+   },
+   "steps": {
+    "en": [],
+    "ar": []
+   },
+   "source_urls": {
+    "en": "https://example.invalid/noor-police/services/minor-accident-report?lng=en",
+    "ar": "https://example.invalid/noor-police/services/minor-accident-report?lng=ar"
+   },
+   "collected_at": "2026-11-20T09:00:00+00:00"
+  },
+  {
+   "id": "cybercrime-report",
+   "name_en": "Cybercrime Report",
+   "name_ar": "الإبلاغ عن الجرائم الإلكترونية",
+   "category": {
+    "en": "Reports",
+    "ar": "البلاغات"
+   },
+   "description": {
+    "en": "Report online fraud, account takeover, blackmail or impersonation to the Noor Police cybercrime unit, and follow the report with a reference number.",
+    "ar": "الإبلاغ عن الاحتيال الإلكتروني أو اختراق الحسابات أو التهديد أو انتحال الشخصية إلى وحدة الجرائم الإلكترونية في شرطة نور، ومتابعة البلاغ برقم مرجعي."
+   },
+   "eligibility": {
+    "en": "Available to: Individuals, Business sector\nThe reporter must be at least 18 years old.",
+    "ar": "متاح لـ: الأفراد, قطاع الأعمال\nيجب أن يكون المبلّغ قد أتم 18 عاماً."
+   },
+   "required_documents": {
+    "en": [
+     "Screenshots of the messages or the transaction",
+     "Bank statement showing the disputed amount, if money was lost"
+    ],
+    "ar": [
+     "صور للرسائل أو للعملية",
+     "كشف حساب يوضح المبلغ المتنازع عليه، في حال فقدان أموال"
+    ]
+   },
+   "fees": {
+    "en": "",
+    "ar": ""
+   },
+   "processing_time": {
+    "en": "Processing time: 2 working days\nDigital channels: 24/7",
+    "ar": "مدة الإنجاز: يوما عمل\nالقنوات الرقمية: 24/7"
+   },
+   "channels": {
+    "en": [
+     "Noor Police website",
+     "Noor Police app"
+    ],
+    "ar": [
+     "الموقع الإلكتروني لشرطة نور",
+     "تطبيق شرطة نور"
+    ]
+   },
+   "steps": {
+    "en": [],
+    "ar": []
+   },
+   "source_urls": {
+    "en": "https://example.invalid/noor-police/services/cybercrime-report?lng=en",
+    "ar": "https://example.invalid/noor-police/services/cybercrime-report?lng=ar"
+   },
+   "collected_at": "2026-11-20T09:00:00+00:00"
+  },
+  {
+   "id": "home-security-while-travelling",
+   "name_en": "Home Security While Travelling",
+   "name_ar": "تأمين المنزل أثناء السفر",
+   "category": {
+    "en": "Community",
+    "ar": "المجتمع"
+   },
+   "description": {
+    "en": "Ask for your home to be included in the patrol round while you are away, by registering the dates of your absence and a contact who holds a key.",
+    "ar": "طلب إدراج منزلك في جولة الدوريات أثناء سفرك، من خلال تسجيل تواريخ الغياب وجهة اتصال تحتفظ بمفتاح."
+   },
+   "eligibility": {
+    "en": "Available to: Individuals\nThe address must be a residence in Noor Emirate.\nThe absence must be no longer than 90 days.",
+    "ar": "متاح لـ: الأفراد\nيجب أن يكون العنوان سكناً في إمارة نور.\nيجب ألا تتجاوز مدة الغياب 90 يوماً."
+   },
+   "required_documents": {
+    "en": [
+     "Noor identity card",
+     "Tenancy contract or ownership document"
+    ],
+    "ar": [
+     "بطاقة هوية نور",
+     "عقد إيجار أو سند ملكية"
+    ]
+   },
+   "fees": {
+    "en": "No fee is charged for this service",
+    "ar": "لا تُستوفى رسوم على هذه الخدمة"
+   },
+   "processing_time": {
+    "en": "Processing time: 1 working day\nDigital channels: 24/7",
+    "ar": "مدة الإنجاز: يوم عمل واحد\nالقنوات الرقمية: 24/7"
+   },
+   "channels": {
+    "en": [
+     "Noor Police app",
+     "Service centre"
+    ],
+    "ar": [
+     "تطبيق شرطة نور",
+     "مركز خدمة"
+    ]
+   },
+   "steps": {
+    "en": [],
+    "ar": []
+   },
+   "source_urls": {
+    "en": "https://example.invalid/noor-police/services/home-security-while-travelling?lng=en",
+    "ar": "https://example.invalid/noor-police/services/home-security-while-travelling?lng=ar"
+   },
+   "collected_at": "2026-11-20T09:00:00+00:00"
+  },
+  {
+   "id": "lost-item-report",
+   "name_en": "Lost Item Report",
+   "name_ar": "بلاغ عن مفقودات",
+   "category": {
+    "en": "Reports",
+    "ar": "البلاغات"
+   },
+   "description": {
+    "en": "Register a lost document, telephone or bag so that it can be matched against items handed in to any Noor Police station.",
+    "ar": "تسجيل مستند أو هاتف أو حقيبة مفقودة لمطابقتها مع المعثورات التي تُسلَّم إلى أي مركز من مراكز شرطة نور."
+   },
+   "eligibility": {
+    "en": "",
+    "ar": ""
+   },
+   "required_documents": {
+    "en": [],
+    "ar": []
+   },
+   "fees": {
+    "en": "",
+    "ar": ""
+   },
+   "processing_time": {
+    "en": "Processing time: Instant\nDigital channels: 24/7",
+    "ar": "مدة الإنجاز: فوري\nالقنوات الرقمية: 24/7"
+   },
+   "channels": {
+    "en": [
+     "Noor Police website",
+     "Service centre"
+    ],
+    "ar": [
+     "الموقع الإلكتروني لشرطة نور",
+     "مركز خدمة"
+    ]
+   },
+   "steps": {
+    "en": [],
+    "ar": []
+   },
+   "source_urls": {
+    "en": "https://example.invalid/noor-police/services/lost-item-report?lng=en",
+    "ar": "https://example.invalid/noor-police/services/lost-item-report?lng=ar"
+   },
+   "collected_at": "2026-11-20T09:00:00+00:00"
+  }
+ ]
+}
