@@ -372,15 +372,41 @@ class TestStatus:
         assert status.available_models == ()
 
 
+def _warm_handler(sent: list[dict[str, object]]):
+    """Accepts both halves of warming: the empty generation and the embedding."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if request.url.path == "/api/embed":
+            return httpx.Response(200, json={"embeddings": [[1.0]]})
+        sent.append(body)
+        return httpx.Response(200, json={"done": True})
+
+    return handler
+
+
 class TestWarming:
-    async def test_warming_asks_for_no_tokens(self) -> None:
-        sent: list[dict[str, object]] = []
+    async def test_warming_loads_the_embedding_model_too(self) -> None:
+        """Retrieval reaches the embedding model before generation is touched."""
+        paths: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
-            sent.append(json.loads(request.content))
+            paths.append(request.url.path)
+            if request.url.path == "/api/embed":
+                return httpx.Response(200, json={"embeddings": [[1.0]]})
             return httpx.Response(200, json={"done": True})
 
         client = _client(httpx.MockTransport(handler))
+        try:
+            await client.warm()
+        finally:
+            await client.close()
+        assert paths == ["/api/generate", "/api/embed"]
+
+    async def test_warming_asks_for_no_tokens(self) -> None:
+        sent: list[dict[str, object]] = []
+
+        client = _client(httpx.MockTransport(_warm_handler(sent)))
         try:
             await client.warm()
         finally:
@@ -392,11 +418,7 @@ class TestWarming:
     async def test_the_configured_residency_is_passed_through(self) -> None:
         sent: list[dict[str, object]] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            sent.append(json.loads(request.content))
-            return httpx.Response(200, json={"done": True})
-
-        client = _client(httpx.MockTransport(handler))
+        client = _client(httpx.MockTransport(_warm_handler(sent)))
         try:
             await client.warm(keep_alive="2h")
         finally:
@@ -406,11 +428,7 @@ class TestWarming:
     async def test_a_named_model_can_be_warmed(self) -> None:
         sent: list[dict[str, object]] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            sent.append(json.loads(request.content))
-            return httpx.Response(200, json={"done": True})
-
-        client = _client(httpx.MockTransport(handler))
+        client = _client(httpx.MockTransport(_warm_handler(sent)))
         try:
             await client.warm("gemma3:4b")
         finally:

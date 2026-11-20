@@ -1,13 +1,10 @@
 """Measuring retrieval: recall at 1, 3 and 5, and mean reciprocal rank.
 
-A retrieved chunk counts as relevant when its service is one the question names.
-That is the right granularity: the answer is assembled from several sections of
-a service, so finding the fee section when the question asked about documents is
-still the right service and the surrounding sections usually come with it.
+A chunk counts as relevant when its service is one the question names, which is
+the right granularity: an answer is assembled from several sections of a service.
 
-Three configurations are measured on the same questions — keyword only, vector
-only, and the two fused — because the only honest way to justify running both is
-to show what each contributes.
+Keyword only, vector only and the two fused are measured on the same questions,
+so what each contributes is visible.
 """
 
 from __future__ import annotations
@@ -269,6 +266,7 @@ def main(settings: Settings) -> int:
             generation_model=settings.generation_model,
             embedding_model=settings.embedding_model,
             embedding_timeout=settings.embedding_timeout,
+            keep_alive=settings.keep_alive,
         )
 
         async def embed(query: str) -> list[float]:

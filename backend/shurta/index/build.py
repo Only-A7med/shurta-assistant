@@ -48,6 +48,7 @@ def build_index(settings: Settings) -> str:
             embedding_model=settings.embedding_model,
             embedding_timeout=settings.embedding_timeout,
             generation_timeout=settings.generation_timeout,
+            keep_alive=settings.keep_alive,
         )
         try:
             return await build_index_async(corpus, directory=settings.index_path, client=client)

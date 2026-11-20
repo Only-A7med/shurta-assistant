@@ -39,11 +39,13 @@ class OllamaClient:
         embedding_model: str,
         embedding_timeout: float = 120.0,
         generation_timeout: float = 300.0,
+        keep_alive: str = "30m",
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.generation_model = generation_model
         self.embedding_model = embedding_model
+        self.keep_alive = keep_alive
         self._embedding_timeout = embedding_timeout
         self._generation_timeout = generation_timeout
         self._client = httpx.AsyncClient(
@@ -67,7 +69,12 @@ class OllamaClient:
             batch = texts[start : start + EMBED_BATCH_SIZE]
             payload = await self._post_json(
                 "/api/embed",
-                {"model": self.embedding_model, "input": batch},
+                {
+                    "model": self.embedding_model,
+                    "input": batch,
+                    # Held resident, or every question pays to load it again.
+                    "keep_alive": self.keep_alive,
+                },
                 timeout=self._embedding_timeout,
             )
             embeddings = payload.get("embeddings")
@@ -150,21 +157,24 @@ class OllamaClient:
         return ModelStatus(reachable=True, available_models=tuple(names))
 
     async def warm(self, model: str | None = None, keep_alive: str | None = None) -> None:
-        """Load a model now, so the first question does not pay for it.
+        """Load the models now, so the first question does not pay for them.
 
-        A zero-length generation is enough: Ollama loads the model and holds it
-        resident without producing any tokens.
+        A zero-length generation loads the instruction model without producing
+        tokens; a one-word embedding loads the embedding model, which retrieval
+        needs before the generation model is reached at all.
         """
+        residency = keep_alive or self.keep_alive
         await self._post_json(
             "/api/generate",
             {
                 "model": model or self.generation_model,
                 "prompt": "",
                 "stream": False,
-                "keep_alive": keep_alive or GenerationOptions().keep_alive,
+                "keep_alive": residency,
             },
             timeout=self._generation_timeout,
         )
+        await self.embed(["warm"])
 
     # --- plumbing ------------------------------------------------------------
 

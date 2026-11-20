@@ -1,10 +1,8 @@
 """What the API holds open for the life of the process.
 
-The index and the model client are expensive to set up and cheap to keep, so
-they are created once at start-up rather than per request.
-
-Start-up does not fail when the index or Ollama is missing: a fresh clone should
-get an API that starts and a health endpoint that names what is missing.
+The index and the model client are created once at start-up. Start-up does not
+fail when either is missing: a fresh clone should get an API that starts and a
+health endpoint that names what is absent.
 """
 
 from __future__ import annotations
@@ -39,6 +37,7 @@ def _default_client(settings: Settings) -> ModelClient:
         embedding_model=settings.embedding_model,
         embedding_timeout=settings.embedding_timeout,
         generation_timeout=settings.generation_timeout,
+        keep_alive=settings.keep_alive,
     )
 
 
