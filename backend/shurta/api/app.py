@@ -1,9 +1,7 @@
 """The HTTP interface: a streaming chat endpoint, a health check, a service list.
 
-Nothing a reader types is stored. The question is held in memory for the length
-of the request and is not written to any log unless ``LOG_QUESTIONS`` is turned
-on deliberately, which it is not by default. There is no session, no identifier
-and no history: a question arrives, an answer streams back, and nothing remains.
+Nothing a reader types is stored. There is no session, no identifier and no
+history: a question arrives, an answer streams back, and nothing remains.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from shurta.answering import ResponseKind
 from shurta.api.sse import event
-from shurta.api.state import ApplicationState
+from shurta.api.state import ApplicationState, WarmState
 from shurta.config import Settings, get_settings
 from shurta.llm.base import ModelClient, ModelError
 from shurta.llm.ollama import model_matches
@@ -61,10 +59,9 @@ class ServiceSummary(BaseModel):
 def create_app(settings: Settings | None = None, client: ModelClient | None = None) -> FastAPI:
     """Build the application.
 
-    Both arguments are seams rather than conveniences: the settings let a test
-    or a container point the application at a different directory without
-    touching the process environment, and the client is how a provider other
-    than Ollama would be supplied.
+    Both arguments are seams: the settings let a test or a container point the
+    application at another directory without touching the process environment,
+    and the client is how a provider other than Ollama would be supplied.
     """
     resolved = settings or get_settings()
 
@@ -72,7 +69,9 @@ def create_app(settings: Settings | None = None, client: ModelClient | None = No
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state = ApplicationState.create(resolved, client)
         app.state.shurta = state
-        await state.warm()
+        # Warming runs in the background so the port is accepting connections
+        # at once; the health endpoint reports "warming" until it finishes.
+        state.start_warming()
         try:
             yield
         finally:
@@ -109,14 +108,9 @@ def _register(app: FastAPI) -> None:
     async def chat(request: Request, body: ChatRequest) -> StreamingResponse:
         """Answer a question, streaming the text and then the citations.
 
-        The event sequence is fixed:
-
-        * ``start`` — how the question was classified and in which language, sent
-          before any generation so the interface can set the text direction and
-          show the right state.
-        * ``token`` — a piece of answer text, repeatedly.
-        * ``done`` — the citations, the timings, and the finished text.
-        * ``error`` — instead of ``done``, if generation failed part way.
+        The event sequence is fixed: ``start`` with the classification and
+        language, then ``token`` repeatedly, then ``done`` with the citations and
+        timings — or ``error`` instead of ``done`` if generation failed part way.
         """
         state = _state(request)
         if not state.ready:
@@ -174,9 +168,10 @@ def _register(app: FastAPI) -> None:
             and all(model["present"] for model in models.values())
             and state.index is not None
         )
+        warming = healthy and state.warm_state is WarmState.WARMING
 
         payload = {
-            "status": "ok" if healthy else "degraded",
+            "status": "warming" if warming else "ok" if healthy else "degraded",
             "ollama": {
                 "base_url": settings.ollama_base_url,
                 "reachable": status.reachable,
@@ -186,10 +181,11 @@ def _register(app: FastAPI) -> None:
             "index": index,
             "corpus": corpus,
             "model_warmed": state.warmed,
+            "warm_state": state.warm_state.value,
             "warm_detail": state.warm_error,
         }
-        # 503 lets a container orchestrator and a reader's browser agree on
-        # whether this is usable, without having to read the body.
+        # 503 lets an orchestrator and a browser agree on whether this is usable
+        # without reading the body. Warming is usable, only slower, so it is 200.
         return JSONResponse(payload, status_code=200 if healthy else 503)
 
     @app.get("/api/services")
@@ -270,6 +266,8 @@ async def _answer_stream(state: ApplicationState, body: ChatRequest) -> AsyncIte
             "emergency_numbers": context.emergency_numbers,
             "retrieval": context.retrieval.timings,
             "best_similarity": round(context.retrieval.best_similarity, 4),
+            "prompt_tokens": context.stats.prompt_tokens if context.stats else 0,
+            "prompt_ms": round(context.stats.prompt_ms, 1) if context.stats else 0.0,
             "model": state.settings.generation_model
             if context.kind is ResponseKind.ANSWER
             else None,

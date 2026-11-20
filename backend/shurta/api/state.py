@@ -1,28 +1,35 @@
 """What the API holds open for the life of the process.
 
-The index and the model client are both expensive to set up and cheap to keep,
-so they are created once at start-up rather than per request. The index in
-particular is a NumPy array that would otherwise be read from disk on every
-question.
+The index and the model client are expensive to set up and cheap to keep, so
+they are created once at start-up rather than per request.
 
-Start-up deliberately does not fail when the index or Ollama is missing. A
-reader who has cloned the repository and not yet run ``ingest`` and ``index``
-should get an API that starts and a health endpoint that says exactly what is
-missing — not a stack trace at boot with no explanation.
+Start-up does not fail when the index or Ollama is missing: a fresh clone should
+get an API that starts and a health endpoint that names what is missing.
 """
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from shurta.answering import AnswerPipeline
 from shurta.config import Settings
 from shurta.corpus import CorpusMissing, load_configured_corpus
-from shurta.llm.base import GenerationOptions, ModelClient
+from shurta.llm.base import ModelClient
 from shurta.llm.ollama import OllamaClient
 from shurta.models import Corpus
 from shurta.retrieval.hybrid import HybridRetriever
 from shurta.retrieval.store import SearchIndex
+
+
+class WarmState(StrEnum):
+    """Where the generation model is in loading."""
+
+    OFF = "off"
+    WARMING = "warming"
+    READY = "ready"
+    FAILED = "failed"
 
 
 def _default_client(settings: Settings) -> ModelClient:
@@ -45,17 +52,18 @@ class ApplicationState:
     corpus: Corpus | None = None
     index_error: str = ""
     corpus_error: str = ""
-    warmed: bool = False
+    warm_state: WarmState = WarmState.OFF
     warm_error: str = ""
     _pipeline: AnswerPipeline | None = field(default=None, init=False, repr=False)
+    _warming: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
 
     @classmethod
     def create(cls, settings: Settings, client: ModelClient | None = None) -> ApplicationState:
         """Build the state, optionally against a supplied model client.
 
-        The client is injectable because the provider is an interface: it lets
-        the tests run the whole API against a stand-in, and it is the seam a
-        second provider would arrive through.
+        The client is injectable because the provider is an interface: it is how
+        the tests run the API against a stand-in, and how a second provider
+        would arrive.
         """
         state = cls(settings=settings, client=client or _default_client(settings))
         state.load()
@@ -81,6 +89,10 @@ class ApplicationState:
     def ready(self) -> bool:
         return self.index is not None
 
+    @property
+    def warmed(self) -> bool:
+        return self.warm_state is WarmState.READY
+
     def pipeline(self) -> AnswerPipeline:
         """The answer pipeline, built once."""
         if self.index is None:
@@ -95,27 +107,35 @@ class ApplicationState:
                 HybridRetriever(self.index, embed),
                 self.client,
                 top_k=self.settings.top_k,
-                options=GenerationOptions(
-                    num_ctx=self.settings.num_ctx,
-                    max_tokens=self.settings.max_answer_tokens,
-                    keep_alive=self.settings.keep_alive,
-                ),
+                options=self.settings.generation_options(),
             )
         return self._pipeline
 
-    async def warm(self) -> None:
-        """Load the generation model so the first question does not wait for it."""
+    def start_warming(self) -> None:
+        """Begin loading the generation model without blocking start-up.
+
+        Loading takes seconds, and awaiting it would stop uvicorn accepting
+        connections for that whole time. The health endpoint reports ``warming``
+        meanwhile, which is the state the interface shows.
+        """
         if not self.settings.warm_model_on_startup:
             return
+        self.warm_state = WarmState.WARMING
+        self._warming = asyncio.create_task(self.warm())
+
+    async def warm(self) -> None:
+        """Load the generation model, recording whether it worked."""
         try:
-            await self.client.warm()
-            self.warmed = True
+            await self.client.warm(keep_alive=self.settings.keep_alive)
+            self.warm_state = WarmState.READY
             self.warm_error = ""
-        # A missing model or a stopped Ollama is reported by the health endpoint;
-        # neither is a reason to refuse to start.
+        # A missing model or a stopped Ollama is reported by the health
+        # endpoint; neither is a reason to refuse to start.
         except Exception as error:
-            self.warmed = False
+            self.warm_state = WarmState.FAILED
             self.warm_error = str(error)
 
     async def close(self) -> None:
+        if self._warming is not None and not self._warming.done():
+            self._warming.cancel()
         await self.client.close()

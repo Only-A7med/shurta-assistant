@@ -8,6 +8,7 @@ exercisable in a few milliseconds.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -21,6 +22,7 @@ from fastapi.testclient import TestClient
 from shurta.answering import SIMILARITY_FLOOR, AnswerPipeline, ResponseKind
 from shurta.api.app import create_app
 from shurta.api.sse import comment, event
+from shurta.api.state import ApplicationState, WarmState
 from shurta.chunking import chunk_corpus
 from shurta.config import Settings
 from shurta.models import Corpus, Language
@@ -375,27 +377,64 @@ class TestStartUp:
         self, prepared: Settings, fake_client: FakeModelClient
     ) -> None:
         warming = prepared.model_copy(update={"warm_model_on_startup": True})
-        with TestClient(create_app(warming, fake_client)):
-            pass
+        with TestClient(create_app(warming, fake_client)) as test_client:
+            test_client.get("/api/health")
         assert fake_client.warm_calls == 1
 
     def test_warming_is_skipped_when_turned_off(
         self, prepared: Settings, fake_client: FakeModelClient
     ) -> None:
         not_warming = prepared.model_copy(update={"warm_model_on_startup": False})
-        with TestClient(create_app(not_warming, fake_client)):
-            pass
+        with TestClient(create_app(not_warming, fake_client)) as test_client:
+            body = test_client.get("/api/health").json()
         assert fake_client.warm_calls == 0
+        assert body["warm_state"] == "off"
+
+    async def test_warming_runs_in_the_background(
+        self, prepared: Settings, fake_client: FakeModelClient
+    ) -> None:
+        """Start-up must not wait for the load, or the port stays shut."""
+        state = ApplicationState.create(
+            prepared.model_copy(update={"warm_model_on_startup": True}), fake_client
+        )
+        state.start_warming()
+        assert state.warm_state is WarmState.WARMING
+        assert state.warmed is False
+
+        for _ in range(20):
+            if state.warm_state is not WarmState.WARMING:
+                break
+            await asyncio.sleep(0)
+        assert state.warm_state is WarmState.READY
+        assert state.warmed is True
+
+    def test_health_reports_warming_until_the_model_is_loaded(self, prepared: Settings) -> None:
+        """The interface shows this state, so it has to be visible."""
+
+        class SlowClient(FakeModelClient):
+            async def warm(self, model: str | None = None, keep_alive: str | None = None) -> None:
+                await asyncio.Event().wait()
+
+        warming = prepared.model_copy(update={"warm_model_on_startup": True})
+        with TestClient(create_app(warming, SlowClient())) as test_client:
+            response = test_client.get("/api/health")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "warming"
+        assert body["warm_state"] == "warming"
+        assert body["model_warmed"] is False
 
     def test_a_failure_to_warm_does_not_stop_the_api_starting(self, prepared: Settings) -> None:
         """A reader whose provider is stopped should still get a health page."""
 
         class RefusingClient(FakeModelClient):
-            async def warm(self, model: str | None = None) -> None:
+            async def warm(self, model: str | None = None, keep_alive: str | None = None) -> None:
                 raise RuntimeError("connection refused")
 
         warming = prepared.model_copy(update={"warm_model_on_startup": True})
         with TestClient(create_app(warming, RefusingClient())) as test_client:
+            test_client.get("/api/health")
             body = test_client.get("/api/health").json()
         assert body["model_warmed"] is False
+        assert body["warm_state"] == "failed"
         assert "connection refused" in body["warm_detail"]
