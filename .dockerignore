@@ -1,0 +1,27 @@
+# Keep the build context small, and keep host-built artefacts out of the image.
+# node_modules in particular holds platform-specific binaries: copying the
+# host's into a Linux image breaks the build rather than saving time.
+.git/
+.github/
+.venv/
+venv/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# The catalogue and the index are built on the host and mounted in.
+data/raw/
+data/processed/
+data/index/
+
+# Evaluation output and anything derived from collected content.
+eval/scorecards/
+eval/key_facts.local.jsonl
+
+.env
+.env.local
