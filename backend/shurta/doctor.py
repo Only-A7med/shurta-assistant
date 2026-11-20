@@ -22,6 +22,15 @@ CROSS = "[fail]"
 WARN = "[warn]"
 
 
+def _first_sentence(error: Exception) -> str:
+    """The first sentence of an error, keeping any file extension intact.
+
+    Splitting on a bare full stop would cut ``services.json`` in half, so the
+    split is on a full stop followed by a space.
+    """
+    return str(error).split(". ")[0].rstrip(".")
+
+
 @dataclass
 class Check:
     """One thing that was checked, and what to do if it failed."""
@@ -85,7 +94,7 @@ def _corpus_check(settings: Settings) -> Check:
         return Check(
             name="Service catalogue",
             passed=False,
-            detail=str(error).split(".")[0],
+            detail=_first_sentence(error),
             remedy=(
                 "python -m shurta ingest  (collects the services from the official "
                 "public website into data/processed; this repository ships no "
@@ -110,7 +119,7 @@ def _index_check(settings: Settings) -> Check:
         return Check(
             name="Search index",
             passed=False,
-            detail=str(error).split(".")[0],
+            detail=_first_sentence(error),
             remedy="python -m shurta index",
         )
 
