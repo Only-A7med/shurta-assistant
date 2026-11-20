@@ -33,7 +33,7 @@
     ]
    },
    "fees": {
-    "en": "Citizen: 75 NRD\nResident: 150 NRD\nApplying from abroad: 240 NRD\nService and records fee: 15 NRD\nPayment methods: Debit card, Credit card, Cash",
+    "en": "Citizen: 75 dirhams\nResident: 150 dirhams\nApplying from abroad: 240 dirhams\nService and records fee: 15 dirhams\nPayment methods: Debit card, Credit card, Cash",
     "ar": "المواطن: 75 درهماً نورياً\nالمقيم: 150 درهماً نورياً\nالتقديم من خارج الإمارة: 240 درهماً نورياً\nرسوم الخدمة والسجلات: 15 درهماً نورياً\nطرق الدفع: بطاقة خصم, بطاقة ائتمان, نقداً"
    },
    "processing_time": {
@@ -83,11 +83,11 @@
     "ar": "المرور"
    },
    "description": {
-    "en": "Check and pay traffic fines recorded against a vehicle plate, a driving licence or a traffic file number, and settle them in instalments where the total exceeds 2,000 NRD.",
+    "en": "Check and pay traffic fines recorded against a vehicle plate, a driving licence or a traffic file number, and settle them in instalments where the total exceeds 2,000 dirhams.",
     "ar": "الاستعلام عن المخالفات المرورية المسجلة على رقم المركبة أو رخصة القيادة أو رقم الملف المروري ودفعها، مع إمكانية التقسيط إذا تجاوز المجموع 2000 درهم نوري."
    },
    "eligibility": {
-    "en": "Available to: Individuals, Business sector\nInstalments are available only when the outstanding total exceeds 2,000 NRD.\nCards issued outside Noor Emirate are not accepted for online payment.",
+    "en": "Available to: Individuals, Business sector\nInstalments are available only when the outstanding total exceeds 2,000 dirhams.\nCards issued outside Noor Emirate are not accepted for online payment.",
     "ar": "متاح لـ: الأفراد, قطاع الأعمال\nالتقسيط متاح فقط إذا تجاوز المبلغ المستحق 2000 درهم نوري.\nالبطاقات الصادرة من خارج إمارة نور غير مقبولة للدفع الإلكتروني."
    },
    "required_documents": {
@@ -95,7 +95,7 @@
     "ar": []
    },
    "fees": {
-    "en": "The amount depends on the fine issued\nService fee per fine: 5 NRD\nPayment methods: Debit card, Credit card, Cash",
+    "en": "The amount depends on the fine issued\nService fee per fine: 5 dirhams\nPayment methods: Debit card, Credit card, Cash",
     "ar": "يعتمد المبلغ على المخالفة المحررة\nرسوم الخدمة لكل مخالفة: 5 دراهم نورية\nطرق الدفع: بطاقة خصم, بطاقة ائتمان, نقداً"
    },
    "processing_time": {

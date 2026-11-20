@@ -17,19 +17,29 @@ import re
 from shurta.arabic import normalise, tokenise
 from shurta.models import Language, Service
 
+# Every pattern below is matched against text that has already been through
+# :func:`shurta.arabic.normalise`, so every Arabic alternative must be written
+# in its *normalised* spelling. This is not a detail: an earlier version wrote
+# ``أيام`` where the normaliser produces ``ايام``, and Arabic durations silently
+# extracted as nothing at all — which does not fail loudly, it just quietly
+# stops checking half the facts.
+
 #: A monetary figure: a number next to a currency word, in either order and in
-#: either language.
-_CURRENCY = r"(?:AED|aed|dirhams?|درهم|دراهم|درهما|\$|USD)"
+#: either language. Normalisation has already case-folded the text.
+_CURRENCY = r"(?:aed|usd|dirhams?|درهم|دراهم|درهما|\$)"
 _AMOUNT = re.compile(
     rf"(?:{_CURRENCY}\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*{_CURRENCY})",
 )
 
-#: A duration: a number and a unit, or the word for an immediate service.
+#: A duration: a number and a unit. ``عمل`` after an Arabic day word marks it as
+#: working days, which is the distinction the corpus draws.
 _DURATION = re.compile(
-    r"(\d+)\s*(working days?|working day|months?|days?|hours?|"
-    r"(?:أيام|يوم|أشهر|شهر|ساعات|ساعة)(?:\s*عمل)?)",
+    r"(\d+)\s*(working days?|months?|days?|hours?|"
+    r"(?:ايام|يوم|يوما|اشهر|شهر|شهرا|ساعات|ساعه)(?:\s*عمل)?)",
 )
-_INSTANT = re.compile(r"\b(instant|immediately|فوري|فوراً|فورا)\b")
+
+#: The word for a service completed immediately, in both languages.
+_INSTANT = re.compile(r"\b(instant|immediately|فوري|فورا)\b")
 
 #: How much of a document phrase has to appear in the answer for it to count.
 #: A document line can be long — "Applying from abroad — copy of the previous

@@ -70,7 +70,7 @@ class FakeModelClient:
 
     def __init__(
         self,
-        answer: str = "The fee is 75 NRD [1].",
+        answer: str = "The fee is 75 dirhams [1].",
         *,
         dimensions: int = 8,
         available: tuple[str, ...] = ("qwen3:4b", "bge-m3:latest"),
