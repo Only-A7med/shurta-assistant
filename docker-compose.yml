@@ -1,0 +1,40 @@
+# Two containers: the API and the web interface. Ollama is not one of them — it
+# stays on the host, where it keeps the model resident between requests, and is
+# reached at host.docker.internal.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CORS_ORIGINS: http://localhost:8080
+      GENERATION_MODEL: ${GENERATION_MODEL:-gemma3:4b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+    volumes:
+      # The catalogue and the index are built on the host; the image carries
+      # neither. Read-only, because nothing in the container writes to them.
+      - ./data:/app/data:ro
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      # Linux hosts do not define this name by themselves.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
