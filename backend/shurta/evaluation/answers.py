@@ -79,13 +79,9 @@ _DECLINING_EN = (
     "unable to",
     "not available in",
 )
-#: The Arabic list is matched against *normalised* text, so every phrase is
-#: written in normalised spelling: bare alef for the hamza forms, ha for ta
-#: marbuta, ya for alef maqsura.
-#: Written with hamzas it would silently never match an answer spelling them the
-#: other way, which is the failure that once left Arabic durations unchecked.
-#: Each phrase is an equivalent of one on the English list, so an Arabic answer
-#: and an English answer are held to the same standard.
+#: Matched against *normalised* text, so each phrase is written in normalised
+#: spelling or it silently never matches. Each is an equivalent of one on the
+#: English list, so both languages are held to the same standard.
 _DECLINING_AR = (
     "لم اجد",  # could not find
     "لا تتضمن",  # does not include
@@ -683,16 +679,11 @@ WEIGHTS = {
     "speed": 0.25,
 }
 
-#: Bounds of the speed component, in milliseconds of median time to first
-#: token. Between them the score falls linearly; outside them it is clamped.
-#:
-#: The bounds describe what processor-only inference can do, not what any
-#: candidate scores. Five seconds is about the floor for a four-billion
-#: parameter model that has to read several hundred tokens of prompt before it
-#: can begin, and a minute is long past the point a reader watching a blank
-#: panel gives up. An earlier zero point of twenty seconds on the 95th
-#: percentile put every realistic model at exactly 0.000, which silently
-#: deleted a quarter of the composite score.
+#: Bounds of the speed component, in milliseconds of median time to first token:
+#: linear between them, clamped outside. They describe what processor-only
+#: inference can do, not what any candidate scores, and were fixed before the
+#: models were compared. An earlier scale zeroing at 20 s on the 95th percentile
+#: scored every model that can run here exactly 0.000. See eval/results.md.
 FAST_FIRST_TOKEN_MS = 5_000
 SLOW_FIRST_TOKEN_MS = 60_000
 
