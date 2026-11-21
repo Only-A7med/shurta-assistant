@@ -59,3 +59,19 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  images:
+    name: Docker images (build only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Built, never run and never pushed. Both images carry no catalogue and
+      # no index, so a successful build is the whole check: it keeps the two
+      # Dockerfiles honest on every push, including from a machine that has no
+      # Docker installed.
+      - name: Build the API image
+        run: docker build -f backend/Dockerfile -t shurta-api .
+
+      - name: Build the web image
+        run: docker build -f frontend/Dockerfile -t shurta-web .
