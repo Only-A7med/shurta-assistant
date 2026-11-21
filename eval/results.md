@@ -31,7 +31,7 @@ score uses the scoped figure.
 | `qwen3:4b-instruct-2507-q4_K_M` | 656 | 9.7 s | 9.7 s | 20.2 s | 13.1 s | 30.6 s | 7.9 |
 | `qwen3:4b` | 662 | 10.1 s | 39.8 s | 67.5 s | 66.9 s | 92.4 s | 8.7 |
 
-- `qwen3:4b`: measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, and half its answers came back empty because the whole token budget went on reasoning the reader never sees. Only 10 of its 20 answers were non-empty, so accuracy is not reported.
+- `qwen3:4b`: measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, so the whole token budget can go on reasoning the reader never sees. Only 10 of its 20 answers were non-empty, so accuracy is not reported.
 
 ## Time to first token
 

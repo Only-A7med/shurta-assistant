@@ -1,5 +1,5 @@
 {
- "measured_at": "2026-11-21T16:12:15.189883+00:00",
+ "measured_at": "2026-11-21T17:20:45.027639+00:00",
  "chunks_indexed": 372,
  "questions": 130,
  "weights": {
@@ -68,7 +68,7 @@
   {
    "model": "qwen3:4b",
    "selection": "subset:latency",
-   "note": "measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, and half its answers came back empty because the whole token budget went on reasoning the reader never sees.",
+   "note": "measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, so the whole token budget can go on reasoning the reader never sees.",
    "questions": 20,
    "generated": 20,
    "failures": 0,
