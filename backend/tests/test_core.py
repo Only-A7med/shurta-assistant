@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from shurta.config import Settings
+from shurta.config import REPOSITORY_ROOT, Settings
 from shurta.corpus import CorpusMissing, load_corpus
 from shurta.doctor import collect_checks, run_doctor
 from shurta.models import Bilingual, BilingualList, Corpus, Language, Service
@@ -207,3 +207,42 @@ class TestDoctor:
         optional = [check for check in checks if not check.required]
         assert optional
         assert all(check.marker in {"[ ok ]", "[warn]"} for check in optional)
+
+
+class TestTheShippedDefaults:
+    """What a fresh clone gets must match what the documentation promises."""
+
+    def _env_example(self) -> dict[str, str]:
+        text = (REPOSITORY_ROOT / ".env.example").read_text(encoding="utf-8")
+        values: dict[str, str] = {}
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            name, _, value = stripped.partition("=")
+            values[name.strip()] = value.strip()
+        return values
+
+    def test_the_generation_model_default_matches_env_example(self) -> None:
+        """The model chosen by the evaluation has to be the one that ships.
+
+        These drifted apart once already: `.env.example` named one model and
+        `config.py` another, so a clone with no `.env` ran a different model
+        from the documented one.
+        """
+        assert Settings().generation_model == self._env_example()["GENERATION_MODEL"]
+
+    def test_the_embedding_model_default_matches_env_example(self) -> None:
+        assert Settings().embedding_model == self._env_example()["EMBEDDING_MODEL"]
+
+    def test_the_retrieval_budget_matches_env_example(self) -> None:
+        example = self._env_example()
+        settings = Settings()
+        assert settings.top_k == int(example["TOP_K"])
+        assert settings.num_ctx == int(example["NUM_CTX"])
+        assert settings.max_answer_tokens == int(example["MAX_ANSWER_TOKENS"])
+
+    def test_no_thread_count_is_pinned_by_default(self) -> None:
+        """The numbers published are the ones a fresh clone reproduces."""
+        assert Settings().num_thread is None
+        assert Settings().max_passage_chars is None

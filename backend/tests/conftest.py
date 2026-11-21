@@ -69,7 +69,7 @@ class FakeModelClient:
         answer: str = "The fee is 75 dirhams [1].",
         *,
         dimensions: int = 8,
-        available: tuple[str, ...] = ("qwen3:4b", "bge-m3:latest"),
+        available: tuple[str, ...] = ("gemma3:4b", "bge-m3:latest"),
         fail_after: int | None = None,
         reachable: bool = True,
         stats: GenerationStats | None = None,

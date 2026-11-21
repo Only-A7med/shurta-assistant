@@ -28,7 +28,8 @@ class Settings(BaseSettings):
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
-    generation_model: str = "qwen3:4b"
+    generation_model: str = "gemma3:4b"
+    """Chosen by measurement, not preference: see eval/results.md."""
     embedding_model: str = "bge-m3"
 
     # Retrieval and generation budget

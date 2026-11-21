@@ -117,7 +117,7 @@ certificate in English, its required documents in Arabic.
 
 Coarser is wasteful: a whole service in one chunk drags the eligibility conditions, the channel list
 and the opening hours into the prompt alongside the fee, which on processor-only inference is paid
-for in memory and in time to first token. Finer is useless: "Resident: AED 200" on its own cannot be
+for in memory and in time to first token. Finer is useless: a single line out of a fee table, on its own, cannot be
 answered from without knowing which service and which fee it belongs to.
 
 Every chunk carries its service's name in both languages, its section heading, its source URL and its
@@ -241,6 +241,16 @@ else. A higher floor would start refusing questions the catalogue does answer, w
 
 The prompt has one job: get a small model to restate retrieved text accurately, in the reader's
 language, with a citation against each claim, and to say it does not know rather than fill a gap.
+
+The default generation model is **`gemma3:4b`**, chosen by measurement rather than preference. It
+was compared with `qwen3:4b-instruct-2507-q4_K_M` over the same 130 questions and with `qwen3:4b`
+on a fixed subset, on one composite score weighting key facts, citations, answer language,
+guardrail behaviour and speed. `gemma3:4b` leads on accuracy — key facts 0.726 against 0.663 — and
+the two instruction models are within half a second of each other on time to first token, so the
+choice is an accuracy one. `qwen3:4b` is excluded: it reasons before answering, the provider gives
+no way to switch that off, and half of its answers came back empty because the whole token budget
+went on reasoning the reader never sees. `eval/results.md` carries the figures, the weights and the
+bounds of the speed scale.
 
 Three things in it are shaped by the model being small:
 

@@ -1,8 +1,8 @@
 """Splitting services into the passages that retrieval works over.
 
 One chunk is one section of one service in one language. Coarser drags unrelated
-sections into the prompt; finer breaks a fee table apart, and "Resident: AED 200"
-on its own says nothing about which service it belongs to.
+sections into the prompt; finer breaks a fee table apart, and one line out of
+one on its own says nothing about which service it belongs to.
 
 Each chunk carries both names of its service, its section heading, its language
 and its source page, so it stands alone as a citation. See docs/architecture.md.
