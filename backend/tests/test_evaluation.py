@@ -8,6 +8,7 @@ provider running.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -18,21 +19,28 @@ from shurta.answering import AnswerPipeline, ResponseKind
 from shurta.chunking import chunk_corpus
 from shurta.config import REPOSITORY_ROOT, Settings
 from shurta.evaluation.answers import (
+    FAST_FIRST_TOKEN_MS,
     FULL_SELECTION,
+    SLOW_FIRST_TOKEN_MS,
     ItemResult,
     ModelResult,
     check_citations,
     check_declines,
     check_language,
     choose_default,
+    comparable_on_the_same_questions,
     composite,
     count_facts,
     evaluate_model,
     first_per_group,
     read_scorecard,
+    rescorable,
+    rescore,
+    rescore_item,
     reuse_scorecard,
     score_question,
     select,
+    speed_reference_from_subset,
     speed_score,
     subset_file,
     write_scorecard,
@@ -43,6 +51,7 @@ from shurta.evaluation.facts import (
     contains_amount,
     contains_document,
     contains_duration,
+    document_name,
     durations_in,
     extract,
 )
@@ -105,6 +114,30 @@ class TestDurations:
         assert not contains_duration("It takes 9 working days", "5 working_day")
 
 
+class TestQualifiedFees:
+    """A fee named after what it funds puts a word between number and currency."""
+
+    def test_a_named_dirham_component_is_found(self) -> None:
+        """`en-018`: the answer stated this fee correctly and scored nothing."""
+        answer = (
+            "The fee for a good conduct certificate is 75 Noor Dirham, 15 Records Dirham, "
+            "and an additional 150 dirhams if submitted in person [2]."
+        )
+        assert contains_amount(answer, "15")
+        assert contains_amount(answer, "150")
+
+    def test_the_plain_adjacent_forms_still_work(self) -> None:
+        assert amounts_in("Resident: 150 dirhams") == ["150"]
+        assert amounts_in("Records fee: 15 dirhams") == ["15"]
+
+    def test_a_number_far_from_a_currency_is_not_a_fee(self) -> None:
+        """Only one intervening word, or any sentence would yield amounts."""
+        assert amounts_in("It takes 4 working days and costs 150 dirhams") == ["150"]
+
+    def test_a_duration_is_not_read_as_a_fee(self) -> None:
+        assert amounts_in("Processing takes 2 working days") == []
+
+
 class TestDocuments:
     def test_a_named_document_matches_a_paraphrased_condition(self) -> None:
         assert contains_document(
@@ -114,6 +147,66 @@ class TestDocuments:
 
     def test_an_unrelated_answer_does_not_match(self) -> None:
         assert not contains_document("Pay the fee online", "Noor identity card, valid or expired")
+
+    def test_a_grouped_document_is_graded_on_the_document_not_the_condition(self) -> None:
+        """`en-004`: the same three documents scored 3/3 and 0/3 for two models.
+
+        A flattened entry is "From outside the UAE - Personal photo". One model
+        happened to mention the condition in a later sentence and was credited
+        for it; the other listed all three documents, said nothing about the
+        condition, and scored nothing. The document is the fact being checked.
+        """
+        grouped = "Applying from abroad — copy of the previous residence permit"
+        listed_without_the_condition = (
+            "- Noor identity card\n- Copy of the previous residence permit [1]"
+        )
+        assert contains_document(listed_without_the_condition, grouped)
+
+    def test_naming_only_the_condition_is_not_a_document(self) -> None:
+        """The same bug the other way round: this used to count as a hit.
+
+        "From outside the UAE you must apply early" shares four of the six
+        tokens of "From outside the UAE - Personal photo" and names no document
+        at all. The fix has to make this stricter, not looser.
+        """
+        assert not contains_document(
+            "Applying from abroad, you must apply early.",
+            "Applying from abroad — copy of the previous residence permit",
+        )
+
+    def test_a_grouped_entry_still_needs_the_right_document(self) -> None:
+        assert not contains_document(
+            "- Driving licence of each driver\n- Vehicle registration card [1]",
+            "Applying from abroad — copy of the previous residence permit",
+        )
+
+    def test_an_ungrouped_document_is_still_graded_whole(self) -> None:
+        assert contains_document(
+            "Bring your Noor identity card, valid or expired [1].",
+            "Noor identity card, valid or expired",
+        )
+
+    def test_a_one_word_document_half_keeps_the_whole_phrase(self) -> None:
+        """Otherwise "X - photo" would match any answer saying "photo"."""
+        assert document_name("Applying from abroad — photo") == ("Applying from abroad — photo")
+
+    def test_the_arabic_conjunction_does_not_hide_a_document(self) -> None:
+        """`dia-014`: "وجدول الفعاليات" names the same document as "جدول الفعاليات".
+
+        The conjunction attaches to the word it joins, so a document listed
+        after "and" became a different token and the answer was scored wrong.
+        """
+        assert contains_document(
+            "بطاقة هوية نور وصورة شخصية بخلفية سادة [2]", "صورة شخصية بخلفية سادة"
+        )
+
+    def test_the_conjunction_is_allowed_not_stripped(self) -> None:
+        """Stripping it would break words whose first letter is a waw.
+
+        "وثيقة" (document) begins with the same letter, so the conjunction is
+        matched on the answer's side rather than removed from every token.
+        """
+        assert not contains_document("وثيقة تأمين سارية [1]", "صورة شخصية بخلفية سادة")
 
     def test_extraction_skips_phrases_too_short_to_be_evidence(self, corpus: Corpus) -> None:
         """A one-word requirement would match almost any answer."""
@@ -244,6 +337,246 @@ def item(**overrides: object) -> ItemResult:
     return ItemResult(**defaults)  # type: ignore[arg-type]
 
 
+class TestGraderFalseNegatives:
+    """Each case here was a correct answer the rules scored as wrong.
+
+    Every phrase was taken from an answer a model actually produced, and each
+    one is pinned so the fix cannot regress. These loosen nothing else: a wrong
+    answer still fails.
+    """
+
+    def test_an_answer_that_says_the_passages_do_not_contain_it_declines(self) -> None:
+        """`oos-001`: a correct refusal scored as a wrong answer."""
+        assert check_declines(
+            "The passages do not contain information on how to renew a passport [2]. "
+            "Please refer to the Dubai Police app, or 901.",
+            Language.EN,
+        )
+
+    def test_the_singular_form_declines_too(self) -> None:
+        assert check_declines("This passage does not contain that fee.", Language.EN)
+
+    def test_arabic_declines_are_matched_whichever_spelling_is_used(self) -> None:
+        """The phrases are matched on normalised text, so hamzas cannot hide one.
+
+        "لم أجد" and "لم اجد" are the same refusal. Matching raw text meant the
+        grading depended on which spelling the model happened to produce.
+        """
+        for written in ("لم أجد هذه المعلومة في المقاطع.", "لم اجد هذه المعلومه في المقاطع."):
+            assert check_declines(written, Language.AR)
+
+    def test_arabic_has_an_equivalent_of_each_english_decline(self) -> None:
+        """English and Arabic answers must be held to the same standard."""
+        equivalents = {
+            "does not contain": "المقاطع لا تحتوي على هذه المعلومة.",
+            "does not include": "المقاطع لا تتضمن رسوم هذه الخدمة.",
+            "does not cover": "معلوماتي لا تغطي هذا الموضوع.",
+            "does not mention": "المقاطع لا تذكر هذه الخدمة.",
+            "is not mentioned": "لم ترد هذه الخدمة في المقاطع.",
+            "no information": "لا توجد معلومات عن هذه الخدمة.",
+            "not available": "هذه المعلومة غير متوفرة في المقاطع.",
+            "is not available": "لا تتوفر لدي معلومات عن ذلك.",
+            "could not find": "لم أجد ذلك في المقاطع.",
+            "i do not have": "لا أملك معلومات عن هذه الخدمة.",
+        }
+        for english, arabic in equivalents.items():
+            assert check_declines(arabic, Language.AR), f"missing the Arabic form of {english!r}"
+
+    def test_an_ordinary_arabic_answer_does_not_count_as_declining(self) -> None:
+        """The added phrases must not turn a real answer into a refusal."""
+        for answered in (
+            "رسوم شهادة حسن السيرة والسلوك 150 درهماً نورياً [1] وتستغرق 4 أيام عمل [1].",
+            "المستندات المطلوبة هي بطاقة هوية نور وصورة شخصية بخلفية سادة [2].",
+            "تبلغ المدة 4 أيام عمل [1].",
+        ):
+            assert not check_declines(answered, Language.AR)
+
+    def test_an_answer_that_states_a_fact_still_does_not_count_as_declining(self) -> None:
+        """The fix must not turn an ordinary answer into a refusal."""
+        assert not check_declines(
+            "A good conduct certificate costs 150 dirhams [1] and takes 4 working days [1].",
+            Language.EN,
+        )
+
+    def test_an_answer_from_an_adjacent_service_does_not_count_as_declining(self) -> None:
+        """`oos-003`: answering from a related service is a real failure."""
+        assert not check_declines(
+            "متاح للأفراد، وأن تكون رخصة القيادة صادرة من إمارة دبي [1].",
+            Language.AR,
+        )
+
+
+class TestRescoringStoredAnswers:
+    """A grader fix must be re-checkable without an hour of inference."""
+
+    def _item(self, **overrides: object) -> ItemResult:
+        return item(**overrides)
+
+    def test_a_stored_answer_is_regraded_without_a_model(self) -> None:
+        stored = self._item(
+            id="q1",
+            text="The fee is 150 dirhams [1].",
+            available_citations=2,
+            facts_expected=1,
+            facts_found=0,
+            cited_count=0,
+        )
+        facts = KeyFacts(id="q1", amounts=["150"])
+        regraded = rescore_item(stored, facts)
+        assert regraded.facts_found == 1
+        assert regraded.facts_expected == 1
+        assert regraded.cited_count == 1
+        assert regraded.citations_valid
+
+    def test_an_invented_citation_is_still_caught_on_a_stored_answer(self) -> None:
+        stored = self._item(id="q1", text="The fee is 150 dirhams [7].", available_citations=2)
+        regraded = rescore_item(stored, KeyFacts(id="q1", amounts=["150"]))
+        assert not regraded.citations_valid
+
+    def test_an_item_with_no_stored_answer_is_left_alone(self) -> None:
+        """Scorecards written before answers were kept must not be corrupted."""
+        stored = self._item(id="q1", text="", facts_found=2, facts_expected=2)
+        regraded = rescore_item(stored, KeyFacts(id="q1", amounts=["150"]))
+        assert regraded == stored
+
+    def test_rescoring_a_whole_scorecard_reports_how_much_it_could_regrade(self) -> None:
+        result = ModelResult(
+            model="test",
+            items=[
+                self._item(id="a", text="150 dirhams [1]", available_citations=1),
+                self._item(id="b", text=""),
+            ],
+        )
+        assert rescorable(result) == 1
+        regraded = rescore(result, {"a": KeyFacts(id="a", amounts=["150"])})
+        assert regraded.model == "test"
+        assert regraded.selection == result.selection
+        assert len(regraded.items) == 2
+
+    def test_a_behaviour_fix_is_regradeable_from_a_stored_answer(self) -> None:
+        """The grader fix for `oos-001` had to be checkable without re-running."""
+        stored = self._item(
+            id="oos-001",
+            behaviour="out_of_scope",
+            kind="answer",
+            behaviour_correct=False,
+            text="The passages do not contain information on how to renew a passport [2].",
+            available_citations=4,
+        )
+        assert rescore_item(stored, None).behaviour_correct
+
+    def test_regrading_does_not_excuse_an_answer_from_a_related_service(self) -> None:
+        stored = self._item(
+            id="oos-003",
+            behaviour="out_of_scope",
+            kind="answer",
+            behaviour_correct=False,
+            language="ar",
+            text="متاح للأفراد، وأن تكون رخصة القيادة صادرة من إمارة دبي [1].",
+            available_citations=4,
+        )
+        assert not rescore_item(stored, None).behaviour_correct
+
+    def test_the_published_aggregate_never_carries_the_answers(self) -> None:
+        """Answers are corpus-derived, so they stay in the local scorecard."""
+        result = ModelResult(
+            model="test",
+            items=[self._item(id="a", text="150 dirhams [1]", available_citations=1)],
+        )
+        assert "text" not in result.to_dict()
+        assert "150 dirhams" not in json.dumps(result.to_dict())
+
+
+class TestSpeedReference:
+    """Latency is the one score another process on the machine can move."""
+
+    def _run(self, model: str, first_token_ms: float) -> ModelResult:
+        return ModelResult(
+            model=model,
+            items=[item(first_token_ms=first_token_ms, facts_expected=2, facts_found=2)],
+        )
+
+    def test_a_reference_median_replaces_the_runs_own(self) -> None:
+        contaminated = self._run("a", 9_200.0)
+        assert speed_score(contaminated) > speed_score(contaminated, first_token_p50_ms=10_800.0)
+
+    def test_the_composite_uses_the_reference_when_one_is_given(self) -> None:
+        run = self._run("a", 9_200.0)
+        assert composite(run, speed_reference={"a": 10_800.0}) < composite(run)
+
+    def test_a_model_without_a_reference_keeps_its_own_median(self) -> None:
+        run = self._run("a", 9_200.0)
+        assert composite(run, speed_reference={"other": 30_000.0}) == composite(run)
+
+    def test_the_reference_can_change_which_model_is_chosen(self) -> None:
+        """If it could not, taking the clean figures would be pointless."""
+        fast_but_contaminated = ModelResult(
+            model="a",
+            items=[item(id="q1", first_token_ms=6_000.0, facts_expected=10, facts_found=5)],
+        )
+        slower_looking = ModelResult(
+            model="b",
+            items=[item(id="q1", first_token_ms=7_000.0, facts_expected=10, facts_found=5)],
+        )
+        both = [fast_but_contaminated, slower_looking]
+        assert choose_default(both) is not None
+        assert choose_default(both).model == "a"  # type: ignore[union-attr]
+        # Measured cleanly, "a" is in fact the slower of the two.
+        clean = {"a": 40_000.0, "b": 7_000.0}
+        assert choose_default(both, speed_reference=clean).model == "b"  # type: ignore[union-attr]
+
+    def test_a_reference_is_read_from_the_subset_scorecard(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from shurta.evaluation import answers as module
+
+        monkeypatch.setattr(module, "SCORECARD_DIR", tmp_path)
+        card = ModelResult(
+            model="gemma3:4b",
+            items=[item(first_token_ms=10_800.0)],
+            selection="subset:latency",
+        )
+        write_scorecard(card, settings=Settings())
+        reference = speed_reference_from_subset(["gemma3:4b", "absent:4b"], "latency")
+        assert reference == {"gemma3:4b": 10_800.0}
+
+
+class TestComparability:
+    """Every model-to-model comparison has to be on the same questions."""
+
+    def _run(self, model: str, ids: list[str], found: int) -> ModelResult:
+        return ModelResult(
+            model=model,
+            items=[item(id=identifier, facts_expected=1, facts_found=found) for identifier in ids],
+        )
+
+    def test_a_partial_run_is_not_comparable_with_a_full_one(self) -> None:
+        """The trap this guards: a model scored on 36 questions read as if it
+        had been scored on all 130."""
+        full = self._run("a", ["q1", "q2", "q3"], 1)
+        partial = ModelResult(
+            model="b",
+            items=[item(id="q1", facts_expected=1, facts_found=0)],
+            selection="all",
+        )
+        assert not comparable_on_the_same_questions([full, partial])
+
+    def test_runs_over_the_same_questions_are_comparable(self) -> None:
+        left = self._run("a", ["q1", "q2"], 1)
+        right = self._run("b", ["q1", "q2"], 0)
+        assert comparable_on_the_same_questions([left, right])
+
+    def test_the_default_is_only_chosen_from_comparable_runs(self) -> None:
+        full = self._run("a", ["q1", "q2", "q3"], 0)
+        partial = ModelResult(
+            model="b",
+            items=[item(id="q1", facts_expected=1, facts_found=1)],
+            selection="all",
+        )
+        # "b" scores better, but on one question out of three.
+        assert choose_default([full, partial]) is None
+
+
 class TestComposite:
     def _result(self, **overrides: object) -> ModelResult:
         defaults: dict[str, object] = {
@@ -281,7 +614,39 @@ class TestComposite:
         assert composite(slow_but_right) > composite(fast_but_wrong)
 
     def test_speed_reaches_zero_for_an_unusably_slow_model(self) -> None:
-        assert speed_score(self._result(first_token_ms=60000.0)) == 0.0
+        assert speed_score(self._result(first_token_ms=SLOW_FIRST_TOKEN_MS)) == 0.0
+
+    def test_speed_reaches_one_for_a_model_that_answers_immediately(self) -> None:
+        assert speed_score(self._result(first_token_ms=FAST_FIRST_TOKEN_MS)) == 1.0
+
+    def test_speed_is_clamped_outside_the_bounds(self) -> None:
+        assert speed_score(self._result(first_token_ms=500.0)) == 1.0
+        assert speed_score(self._result(first_token_ms=120_000.0)) == 0.0
+
+    def test_speed_is_linear_between_the_bounds(self) -> None:
+        """The midpoint has to score a half, or the scale is not the stated one."""
+        midpoint = (FAST_FIRST_TOKEN_MS + SLOW_FIRST_TOKEN_MS) / 2
+        assert speed_score(self._result(first_token_ms=midpoint)) == pytest.approx(0.5)
+        quarter = FAST_FIRST_TOKEN_MS + (SLOW_FIRST_TOKEN_MS - FAST_FIRST_TOKEN_MS) / 4
+        assert speed_score(self._result(first_token_ms=quarter)) == pytest.approx(0.75)
+
+    def test_a_realistic_processor_only_model_scores_above_zero(self) -> None:
+        """The point of the bounds: a measurable speed must be a usable number.
+
+        The previous scale zeroed at twenty seconds on the 95th percentile, so
+        every model that can actually run here scored exactly 0.000 and a
+        quarter of the composite carried no weight at all.
+        """
+        realistic = speed_score(self._result(first_token_ms=13_600.0))
+        assert 0.0 < realistic < 1.0
+
+    def test_speed_is_measured_on_the_median_not_the_tail(self) -> None:
+        fast_median = ModelResult(
+            model="test",
+            items=[item(first_token_ms=6_000.0) for _ in range(9)]
+            + [item(first_token_ms=55_000.0)],
+        )
+        assert speed_score(fast_median) > 0.8
 
     def test_metrics_are_bounded(self) -> None:
         result = self._result()

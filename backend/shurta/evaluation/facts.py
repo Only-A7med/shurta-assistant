@@ -27,6 +27,18 @@ _AMOUNT = re.compile(
     rf"(?:{_CURRENCY}\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*{_CURRENCY})",
 )
 
+#: A fee component named after what it funds puts a qualifier between the number
+#: and the currency word: "10 Knowledge Dirham", "Innovation Dirham: 10". The
+#: plain pattern needs them adjacent, so it cannot see either form, and an answer
+#: stating such a fee correctly was scored as having missed it. Restricted to the
+#: dirham words and to exactly one intervening word, so an ordinary sentence that
+#: happens to put a number some distance from a currency is not swept up.
+_DIRHAM = r"(?:dirhams?|درهم|دراهم|درهما)"
+_QUALIFIED_AMOUNT = re.compile(
+    rf"(?:([\d,]+(?:\.\d+)?)\s+[^\W\d_]+\s+{_DIRHAM}"
+    rf"|{_DIRHAM}\s+[^\W\d_]+\s*:?\s*([\d,]+(?:\.\d+)?))",
+)
+
 #: A duration: a number and a unit. ``عمل`` after an Arabic day word marks it as
 #: working days, which is the distinction the corpus draws.
 _DURATION = re.compile(
@@ -46,15 +58,22 @@ DOCUMENT_TOKEN_OVERLAP = 0.6
 #: as "passport" would match almost any answer.
 MINIMUM_DOCUMENT_TOKENS = 2
 
+#: The separator the collector uses when it flattens a nested document list into
+#: "condition - document", because some document lists hang their entries off a
+#: condition label rather than listing them flat.
+GROUP_SEPARATOR = " — "
+
 
 def amounts_in(text: str) -> list[str]:
     """Every monetary figure in the text, as bare numbers without separators."""
+    normalised = normalise(text)
     found: list[str] = []
-    for match in _AMOUNT.finditer(normalise(text)):
-        number = match.group(1) or match.group(2)
-        cleaned = number.replace(",", "").rstrip(".")
-        if cleaned and cleaned not in found:
-            found.append(cleaned)
+    for pattern in (_AMOUNT, _QUALIFIED_AMOUNT):
+        for match in pattern.finditer(normalised):
+            number = match.group(1) or match.group(2)
+            cleaned = number.replace(",", "").rstrip(".")
+            if cleaned and cleaned not in found:
+                found.append(cleaned)
     return found
 
 
@@ -147,10 +166,43 @@ def contains_duration(answer: str, duration: str) -> bool:
     return False
 
 
+def document_name(document: str) -> str:
+    """The document itself, without the condition it was grouped under.
+
+    A flattened entry reads "From outside the UAE - Passport copy". The fact
+    being checked is that the answer names the *document*; the condition is
+    context for it. Matching the whole phrase got this wrong in both
+    directions: an answer that listed every document without restating the
+    condition scored nothing, while an answer naming only the condition and no
+    document at all matched four of the phrase's six tokens and counted as a
+    hit.
+
+    The whole phrase is kept when the document half is too short to stand as
+    evidence on its own.
+    """
+    _, separator, name = document.rpartition(GROUP_SEPARATOR)
+    if not separator or len(tokenise(name)) < MINIMUM_DOCUMENT_TOKENS:
+        return document
+    return name
+
+
+#: The Arabic conjunction, which attaches to the word it joins. "جدول" and
+#: "وجدول" are the same word in a list, but they are different tokens, and an
+#: answer listing documents with "and" between them was scored as having named
+#: the wrong one. Matching allows it on the answer's side rather than stripping
+#: it, because the same letter is a root letter in words like "وثيقة".
+_CONJUNCTION = "و"
+
+
+def _names_token(present: set[str], token: str) -> bool:
+    return token in present or f"{_CONJUNCTION}{token}" in present
+
+
 def contains_document(answer: str, document: str) -> bool:
     """Whether the answer names a document, by token overlap with the phrase."""
-    wanted = set(tokenise(document))
+    wanted = set(tokenise(document_name(document)))
     if not wanted:
         return False
     present = set(tokenise(answer))
-    return len(wanted & present) / len(wanted) >= DOCUMENT_TOKEN_OVERLAP
+    matched = sum(1 for token in wanted if _names_token(present, token))
+    return matched / len(wanted) >= DOCUMENT_TOKEN_OVERLAP

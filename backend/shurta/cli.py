@@ -73,6 +73,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     evaluate.add_argument(
+        "--rescore",
+        action="store_true",
+        help=(
+            "re-grade the answers already stored in each scorecard and rewrite the "
+            "reports, without calling a model (answers only)"
+        ),
+    )
+    evaluate.add_argument(
+        "--speed-from-subset",
+        default=None,
+        metavar="NAME",
+        help=(
+            "take the speed component from each model's scorecard for this subset, "
+            "measured with nothing else running, instead of from the run's own median "
+            "(answers only)"
+        ),
+    )
+    evaluate.add_argument(
         "--note",
         action="append",
         default=None,
@@ -177,6 +195,8 @@ def _evaluate(settings: Settings, arguments: argparse.Namespace) -> int:
         limit=arguments.limit,
         subset=arguments.subset,
         notes=_notes(arguments.note),
+        rescore_only=arguments.rescore,
+        speed_from_subset=arguments.speed_from_subset,
     )
 
 
