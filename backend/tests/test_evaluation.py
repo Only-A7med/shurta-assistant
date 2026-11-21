@@ -935,10 +935,14 @@ class TestRetrievalInterpretation:
         tied["hybrid"]["gulf"].hits[1] = round(0.867 * 15)
         assert "fusion scores below both methods" not in _interpretation(tied)
 
-    def test_weighted_fusion_is_offered_as_untuned(self) -> None:
+    def test_the_weight_sweep_is_recorded_as_run_and_as_not_held_out(self) -> None:
+        """It was swept and did not help, which is not the same as untried."""
         text = _interpretation(self.measured)
-        assert "Weighted fusion is a possible next step rather than a measured one" in text
-        assert "no held-out set to tune them on" in text
+        assert "A weighted fusion was swept, not left untried" in text
+        assert "lost the code-switched case outright, 1.000 to 0.800" in text
+        assert "an earlier sweep, over 100 questions" in text
+        assert "it is not a held-out result" in text
+        assert "has not been re-run on the current 110" in text
 
 
 # --------------------------------------------------------------------------

@@ -179,8 +179,13 @@ Vector search alone is ahead by 2 questions in 110 at rank 1. The fused ranking 
 because keyword matching holds on to the exact terms an embedding can miss — a service name typed
 in Latin script, a figure — and it reaches 1.000 on the 5 code-switched questions, where vector
 search alone reaches 0.800. Gulf dialect is the one group where fusion scores below both methods on
-their own, 0.800 against 0.867 over 15 questions. Weighting the two methods instead of fusing them
-equally is a possible next step that was not tuned, because there is no held-out set to tune it on.
+their own, 0.800 against 0.867 over 15 questions.
+
+A weighted fusion was swept rather than left untried: weighting towards the stronger vector ranking
+moved the overall figures by under one question in 100 and lost the code-switched case outright,
+1.000 to 0.800, so the weights stay equal. That was an earlier sweep, over 100 questions, measured
+on the same questions its own figures came from — not a held-out result — and it has not been
+re-run on the current 110.
 
 ### Answers
 

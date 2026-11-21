@@ -54,4 +54,4 @@ The fused ranking is kept because keyword matching holds on to exact terms the e
 
 Gulf dialect is the one group where fusion scores below both methods on their own: recall@1 0.800 against 0.867 for both, over 15 questions, recovering to 1.000 by rank 5. One question moves that group by 0.067, so it is a direction to look at rather than a measured conclusion.
 
-Weighted fusion is a possible next step rather than a measured one. The weights are equal and were not tuned, because there is no held-out set to tune them on: tuning them on the same 110 questions these figures come from would fit the weights to the numbers published beside them.
+A weighted fusion was swept, not left untried: weighting towards the stronger vector ranking moved the overall figures by under one question in 100 and lost the code-switched case outright, 1.000 to 0.800. So the weights stay equal, and they are in the code at 1.0. That was an earlier sweep, over 100 questions, and it was measured on the same questions its own figures came from, so it is not a held-out result; it has not been re-run on the current 110.

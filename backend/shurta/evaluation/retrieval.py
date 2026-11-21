@@ -34,6 +34,19 @@ METHOD_NAMES = {
     "hybrid": "Hybrid, fused",
 }
 
+#: What the fusion-weight sweep found. Recorded rather than measured here: it
+#: was run over the 100-question set that preceded the current one, so these
+#: figures cannot be derived from this run, and re-deriving them would mean a
+#: new sweep. ``{total}`` is this run's question count.
+WEIGHT_SWEEP = (
+    "A weighted fusion was swept, not left untried: weighting towards the stronger vector "
+    "ranking moved the overall figures by under one question in 100 and lost the code-switched "
+    "case outright, 1.000 to 0.800. So the weights stay equal, and they are in the code at 1.0. "
+    "That was an earlier sweep, over 100 questions, and it was measured on the same questions "
+    "its own figures came from, so it is not a held-out result; it has not been re-run on the "
+    "current {total}."
+)
+
 GROUP_NAMES = {
     "overall": "Overall",
     "en": "English",
@@ -287,12 +300,7 @@ def _interpretation(scores: dict[str, dict[str, Scores]]) -> str:
             f"Fusion scores below both methods on their own in {len(losing)} groups: {listed}."
         )
 
-    paragraphs.append(
-        "Weighted fusion is a possible next step rather than a measured one. The weights are "
-        "equal and were not tuned, because there is no held-out set to tune them on: tuning "
-        f"them on the same {dense.total} questions these figures come from would fit the "
-        "weights to the numbers published beside them."
-    )
+    paragraphs.append(WEIGHT_SWEEP.format(total=dense.total))
 
     return "\n\n".join(paragraphs)
 
