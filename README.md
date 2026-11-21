@@ -55,7 +55,8 @@ flowchart TD
 
 ## Requirements
 
-- Python 3.12 or newer
+- Python 3.12 — the project pins `==3.12.*`, so 3.11 and 3.13 are both rejected by the
+  install. Check with `python --version`, and see the note below if it is not 3.12.
 - Node 20.19 or newer (for the web interface)
 - [Ollama](https://ollama.com) running on the same machine
 - About 6 GB of free memory and 6 GB of disk for the models
@@ -70,6 +71,17 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 Copy-Item .env.example .env          # optional: every default works without it
 ```
+
+If `python` is not 3.12 on your machine, the install stops with
+`requires a different Python`. Name the interpreter instead — on Windows the launcher
+finds it, and `py -0p` lists what you have:
+
+```powershell
+py -3.12 -m venv .venv
+```
+
+On macOS or Linux use `python3.12 -m venv .venv`, and `./.venv/bin/python` in place of
+the Windows interpreter path throughout.
 
 Pull the models (about 4.6 GB in total):
 
@@ -96,8 +108,8 @@ npm ci
 npm run dev                                     # http://localhost:5173
 ```
 
-On macOS or Linux the same commands work with `python3 -m venv .venv` and
-`./.venv/bin/python` in place of the Windows paths.
+On macOS or Linux the same commands work with `./.venv/bin/python` in place of the
+Windows interpreter path.
 
 ### Asking a question from the command line
 
