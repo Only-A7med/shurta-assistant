@@ -29,29 +29,29 @@ Each was found by reading the answers behind the counts rather than trusting the
 counts, and each is pinned by a test. None loosens the grading in any other
 respect, and two make it stricter.
 
-1. **A correct refusal was scored as a wrong answer.** The English phrase list
+1. A correct refusal was scored as a wrong answer. The English phrase list
    recognised "does not cover" and "no information" but nothing containing
    "contain", so *"The passages do not contain information on how to renew a
    passport"* counted as a failure to decline.
-2. **The Arabic phrase list was matched against un-normalised text**, so a
+2. The Arabic phrase list was matched against un-normalised text, so a
    refusal matched or not depending on which of several meaning-identical
    spellings the model produced. It is now matched on normalised text, written
    in normalised spelling, and extended to an equivalent of every English
    phrase.
-3. **A document was graded on the condition it was grouped under.** A nested
+3. A document was graded on the condition it was grouped under. A nested
    requirement is flattened to "condition — document". Matching the whole phrase
    scored one model 3/3 and another 0/3 *for the same three documents*, and —
    the same fault inverted — credited an answer that named the condition and no
    document at all. Grading the document alone fixes both.
-4. **A surcharge named after what it funds was invisible.** The pattern needed
+4. A surcharge named after what it funds was invisible. The pattern needed
    the currency word next to the number, but these are written as figure, then
    name, then currency, so an answer stating one correctly was scored as having
    missed the figure it plainly states.
-5. **The Arabic conjunction hid a document.** It attaches to the word it joins,
+5. The Arabic conjunction hid a document. It attaches to the word it joins,
    so a document listed after "and" became a different token. It is now allowed
    on the answer's side rather than stripped from every token, because the same
    letter begins ordinary words such as "وثيقة".
-6. **A question was graded against figures it did not ask about** — the largest
+6. A question was graded against figures it did not ask about — the largest
    of the six, and a fault in the question set rather than in the grader. It is
    described next.
 
@@ -79,7 +79,7 @@ the same stored answers:
 
 | | `gemma3:4b` | `qwen3:4b-instruct` |
 |---|---:|---:|
-| Key facts recalled, scoped | **0.826** | **0.755** |
+| Key facts recalled, scoped | 0.826 | 0.755 |
 | Key facts recalled, every figure | 0.719 | 0.657 |
 | Facts missed, scoped | 27 of 155, in 19 questions | 38 of 155, in 28 questions |
 | Facts missed, every figure | 50 of 178 | 61 of 178 |

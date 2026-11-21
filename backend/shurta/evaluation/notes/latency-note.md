@@ -1,16 +1,16 @@
 ## Time to first token
 
-At the shipped defaults `gemma3:4b` reaches its first token in a median of
-**9.2 seconds** over all 130 questions and **10.8 seconds** on the 20-question
-latency subset re-run with nothing else on the machine, both measured on
-2026-11-21; `qwen3:4b-instruct` gives 9.7 and 10.4 seconds. The speed table
-above carries the percentiles for each.
+At the shipped defaults `gemma3:4b` reaches its first token in a median of 9.2
+seconds over all 130 questions and 10.8 seconds on the 20-question latency
+subset re-run with nothing else on the machine, both measured on 2026-11-21;
+`qwen3:4b-instruct` gives 9.7 and 10.4 seconds. The speed table above carries
+the percentiles for each.
 
 All of the perceptible wait is the model reading the prompt. The provider reports
 on its final streamed event how many prompt tokens it processed and how long that
-took, and prompt processing is 99 per cent of the time to first token: 706 prompt
-tokens taking about 15 seconds, against a model load of 17 milliseconds and
-retrieval of 50 to 70 milliseconds.
+took, and prompt processing is 99 per cent of the time to first token: a median
+604 prompt tokens take 9.15 of the 9.21 seconds, against a model load of 17
+milliseconds and retrieval of 50 to 70 milliseconds.
 
 ### What was tried
 
@@ -42,14 +42,14 @@ python -m shurta eval answers --model gemma3:4b --subset latency --force
 
 ### What was kept, and what was reverted
 
-**Kept: the service is named once per group of passages, not once per passage.**
+Kept: the service is named once per group of passages, not once per passage.
 A chunk's text repeats both of its service's names and its category, which is
 what lets an Arabic question retrieve an English passage. In the prompt that is
 redundant, so passages are grouped by service and the service is named once, in
 the reader's language. The median prompt falls by 89 tokens with no information
 lost and no measured change in accuracy.
 
-**Kept: an unchanged prompt prefix.** The rules block was already first and
+Kept: an unchanged prompt prefix. The rules block was already first and
 byte-identical between requests in one language, which lets the provider reuse
 its cached prefix. Measured directly against the provider with a 170-token
 prefix: 9.2 seconds with the prefix first against 13.1 seconds with the same
@@ -57,21 +57,21 @@ block moved to the end, and 0.5 seconds when a prompt is repeated exactly. A tes
 asserts the prefix is stable, because moving anything variable above the rules
 would silently cost seconds per question.
 
-**Kept: the models stay resident.** `keep_alive` is sent with generation *and*
+Kept: the models stay resident. `keep_alive` is sent with generation *and*
 embedding requests, and start-up warms both. `ollama ps` confirms neither is
 reloaded between questions, and the reported load time per question is about 17
 milliseconds.
 
-**Reverted: capping passage length.** A 500-character cap saved 68 tokens and
+Reverted: capping passage length. A 500-character cap saved 68 tokens and
 cost key-fact recall in both runs that used it (0.524 and 0.500 against 0.571
 unchanged). The tail of a fee or document list is sometimes the part the question
 was about. The cap is still available as `MAX_PASSAGE_CHARS`, unset by default.
 
-**Reverted: `top_k` 3.** Two runs with three passages both scored 0.500 on key
+Reverted: `top_k` 3. Two runs with three passages both scored 0.500 on key
 facts against a mean of 0.571 with four. A question is often answered by two
 sections of one service, and the fourth passage is what carries the second one.
 
-**Optional, not a default: the generation thread count.** 12 threads was the
+Optional, not a default: the generation thread count. 12 threads was the
 fastest setting measured and 4 the slowest, a difference of 6.6 seconds with no
 change in accuracy. It is left unset so the provider chooses, because the right
 number is the machine's physical core count and a value hard-coded here would be
@@ -83,12 +83,12 @@ No. The target was under 4 seconds to the first token, and the shipped defaults
 give the 9.2 and 10.8 second medians above.
 
 The arithmetic says why. Prompt processing runs at roughly 45 to 50 tokens per
-second here, so a 4-second budget buys about 200 tokens. The rules block alone is
-about 230 tokens — free after the first question in a language, because it is
-cached — and the four passages and the question are another 390. Reaching 200
-uncached tokens means one passage, or a truncated one, and both were measured to
-cost key-fact recall. Under 4 seconds is reachable on this inference setup only
-by answering worse.
+second in these measurements, so a 4-second budget buys about 200 tokens. The
+rules block alone is about 230 tokens — free after the first question in a
+language, because it is cached — and the four passages and the question are
+another 390. Reaching 200 uncached tokens means one passage, or a truncated one,
+and both were measured to cost key-fact recall. Under 4 seconds is reachable
+only by answering worse.
 
 Two caveats. Run-to-run variance is large: identical settings produced 15.0 and
 18.3 seconds, and two early runs reached 8.0 seconds at a prompt-processing rate

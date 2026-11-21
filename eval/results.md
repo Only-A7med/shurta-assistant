@@ -35,17 +35,17 @@ score uses the scoped figure.
 
 ## Time to first token
 
-At the shipped defaults `gemma3:4b` reaches its first token in a median of
-**9.2 seconds** over all 130 questions and **10.8 seconds** on the 20-question
-latency subset re-run with nothing else on the machine, both measured on
-2026-11-21; `qwen3:4b-instruct` gives 9.7 and 10.4 seconds. The speed table
-above carries the percentiles for each.
+At the shipped defaults `gemma3:4b` reaches its first token in a median of 9.2
+seconds over all 130 questions and 10.8 seconds on the 20-question latency
+subset re-run with nothing else on the machine, both measured on 2026-11-21;
+`qwen3:4b-instruct` gives 9.7 and 10.4 seconds. The speed table above carries
+the percentiles for each.
 
 All of the perceptible wait is the model reading the prompt. The provider reports
 on its final streamed event how many prompt tokens it processed and how long that
-took, and prompt processing is 99 per cent of the time to first token: 706 prompt
-tokens taking about 15 seconds, against a model load of 17 milliseconds and
-retrieval of 50 to 70 milliseconds.
+took, and prompt processing is 99 per cent of the time to first token: a median
+604 prompt tokens take 9.15 of the 9.21 seconds, against a model load of 17
+milliseconds and retrieval of 50 to 70 milliseconds.
 
 ### What was tried
 
@@ -77,14 +77,14 @@ python -m shurta eval answers --model gemma3:4b --subset latency --force
 
 ### What was kept, and what was reverted
 
-**Kept: the service is named once per group of passages, not once per passage.**
+Kept: the service is named once per group of passages, not once per passage.
 A chunk's text repeats both of its service's names and its category, which is
 what lets an Arabic question retrieve an English passage. In the prompt that is
 redundant, so passages are grouped by service and the service is named once, in
 the reader's language. The median prompt falls by 89 tokens with no information
 lost and no measured change in accuracy.
 
-**Kept: an unchanged prompt prefix.** The rules block was already first and
+Kept: an unchanged prompt prefix. The rules block was already first and
 byte-identical between requests in one language, which lets the provider reuse
 its cached prefix. Measured directly against the provider with a 170-token
 prefix: 9.2 seconds with the prefix first against 13.1 seconds with the same
@@ -92,21 +92,21 @@ block moved to the end, and 0.5 seconds when a prompt is repeated exactly. A tes
 asserts the prefix is stable, because moving anything variable above the rules
 would silently cost seconds per question.
 
-**Kept: the models stay resident.** `keep_alive` is sent with generation *and*
+Kept: the models stay resident. `keep_alive` is sent with generation *and*
 embedding requests, and start-up warms both. `ollama ps` confirms neither is
 reloaded between questions, and the reported load time per question is about 17
 milliseconds.
 
-**Reverted: capping passage length.** A 500-character cap saved 68 tokens and
+Reverted: capping passage length. A 500-character cap saved 68 tokens and
 cost key-fact recall in both runs that used it (0.524 and 0.500 against 0.571
 unchanged). The tail of a fee or document list is sometimes the part the question
 was about. The cap is still available as `MAX_PASSAGE_CHARS`, unset by default.
 
-**Reverted: `top_k` 3.** Two runs with three passages both scored 0.500 on key
+Reverted: `top_k` 3. Two runs with three passages both scored 0.500 on key
 facts against a mean of 0.571 with four. A question is often answered by two
 sections of one service, and the fourth passage is what carries the second one.
 
-**Optional, not a default: the generation thread count.** 12 threads was the
+Optional, not a default: the generation thread count. 12 threads was the
 fastest setting measured and 4 the slowest, a difference of 6.6 seconds with no
 change in accuracy. It is left unset so the provider chooses, because the right
 number is the machine's physical core count and a value hard-coded here would be
@@ -118,12 +118,12 @@ No. The target was under 4 seconds to the first token, and the shipped defaults
 give the 9.2 and 10.8 second medians above.
 
 The arithmetic says why. Prompt processing runs at roughly 45 to 50 tokens per
-second here, so a 4-second budget buys about 200 tokens. The rules block alone is
-about 230 tokens — free after the first question in a language, because it is
-cached — and the four passages and the question are another 390. Reaching 200
-uncached tokens means one passage, or a truncated one, and both were measured to
-cost key-fact recall. Under 4 seconds is reachable on this inference setup only
-by answering worse.
+second in these measurements, so a 4-second budget buys about 200 tokens. The
+rules block alone is about 230 tokens — free after the first question in a
+language, because it is cached — and the four passages and the question are
+another 390. Reaching 200 uncached tokens means one passage, or a truncated one,
+and both were measured to cost key-fact recall. Under 4 seconds is reachable
+only by answering worse.
 
 Two caveats. Run-to-run variance is large: identical settings produced 15.0 and
 18.3 seconds, and two early runs reached 8.0 seconds at a prompt-processing rate
@@ -163,29 +163,29 @@ Each was found by reading the answers behind the counts rather than trusting the
 counts, and each is pinned by a test. None loosens the grading in any other
 respect, and two make it stricter.
 
-1. **A correct refusal was scored as a wrong answer.** The English phrase list
+1. A correct refusal was scored as a wrong answer. The English phrase list
    recognised "does not cover" and "no information" but nothing containing
    "contain", so *"The passages do not contain information on how to renew a
    passport"* counted as a failure to decline.
-2. **The Arabic phrase list was matched against un-normalised text**, so a
+2. The Arabic phrase list was matched against un-normalised text, so a
    refusal matched or not depending on which of several meaning-identical
    spellings the model produced. It is now matched on normalised text, written
    in normalised spelling, and extended to an equivalent of every English
    phrase.
-3. **A document was graded on the condition it was grouped under.** A nested
+3. A document was graded on the condition it was grouped under. A nested
    requirement is flattened to "condition — document". Matching the whole phrase
    scored one model 3/3 and another 0/3 *for the same three documents*, and —
    the same fault inverted — credited an answer that named the condition and no
    document at all. Grading the document alone fixes both.
-4. **A surcharge named after what it funds was invisible.** The pattern needed
+4. A surcharge named after what it funds was invisible. The pattern needed
    the currency word next to the number, but these are written as figure, then
    name, then currency, so an answer stating one correctly was scored as having
    missed the figure it plainly states.
-5. **The Arabic conjunction hid a document.** It attaches to the word it joins,
+5. The Arabic conjunction hid a document. It attaches to the word it joins,
    so a document listed after "and" became a different token. It is now allowed
    on the answer's side rather than stripped from every token, because the same
    letter begins ordinary words such as "وثيقة".
-6. **A question was graded against figures it did not ask about** — the largest
+6. A question was graded against figures it did not ask about — the largest
    of the six, and a fault in the question set rather than in the grader. It is
    described next.
 
@@ -213,7 +213,7 @@ the same stored answers:
 
 | | `gemma3:4b` | `qwen3:4b-instruct` |
 |---|---:|---:|
-| Key facts recalled, scoped | **0.826** | **0.755** |
+| Key facts recalled, scoped | 0.826 | 0.755 |
 | Key facts recalled, every figure | 0.719 | 0.657 |
 | Facts missed, scoped | 27 of 155, in 19 questions | 38 of 155, in 28 questions |
 | Facts missed, every figure | 50 of 178 | 61 of 178 |
