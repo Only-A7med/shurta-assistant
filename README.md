@@ -1,9 +1,11 @@
 # Shurta Assistant
 
+[![CI](https://github.com/Only-A7med/shurta-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Only-A7med/shurta-assistant/actions/workflows/ci.yml)
+
 A bilingual question-answering assistant over public Dubai Police service information, running
 entirely on the machine it is installed on. Ask in English, Modern Standard Arabic or Gulf dialect
-what a service costs, what documents it needs or how long it takes, and get a short answer with a
-citation against each fact and a link to the official page it came from.
+what a service costs, what documents it needs or how long it takes, and get a short answer with
+cited sources, each linking to the official page it came from.
 
 > Unofficial project. Not affiliated with, endorsed by or connected to Dubai Police or any other
 > authority. See [Data and attribution](#data-and-attribution).
