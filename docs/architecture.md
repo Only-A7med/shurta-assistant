@@ -117,8 +117,8 @@ certificate in English, its required documents in Arabic.
 
 Coarser is wasteful: a whole service in one chunk drags the eligibility conditions, the channel list
 and the opening hours into the prompt alongside the fee, which on processor-only inference is paid
-for in memory and in time to first token. Finer is useless: a single line out of a fee table, on its own, cannot be
-answered from without knowing which service and which fee it belongs to.
+for in memory and in time to first token. Finer is useless: a single line out of a fee table, on its
+own, cannot be answered from without knowing which service and which fee it belongs to.
 
 Every chunk carries its service's name in both languages, its section heading, its source URL and its
 collection date. The bilingual naming costs a few tokens and is what lets an Arabic question land on
@@ -155,23 +155,27 @@ override agreement between both.
 
 ### The trade-off, measured
 
-Measured over the questions with a known answer:
+Measured over the 110 questions with a known answer:
 
-| Method | recall@1 | recall@5 | Code-switched recall@1 |
-|---|---:|---:|---:|
-| Keyword only | 0.810 | 0.940 | 1.000 |
-| Vector only | 0.910 | 0.970 | 0.800 |
-| Fused | 0.890 | 0.960 | 1.000 |
+| Method | recall@1 | recall@5 | Code-switched recall@1 | Gulf dialect recall@1 |
+|---|---:|---:|---:|---:|
+| Keyword only | 0.827 | 0.945 | 1.000 | 0.867 |
+| Vector only | 0.918 | 0.973 | 0.800 | 0.867 |
+| Fused | 0.900 | 0.964 | 1.000 | 0.800 |
 
-Vector search alone is better overall, by two questions in a hundred. The fused ranking is still the
-default because it is the only configuration that answers every code-switched question correctly,
-where vector search alone misses one in five: a service name typed in Latin script inside an Arabic
-sentence is found by keyword search and missed by the embedding. Losing a class of question is worse
-than losing a point of overall accuracy.
+Vector search alone is ahead by 2 questions in 110 at rank 1. The fused ranking ships anyway,
+because keyword matching holds on to the exact terms an embedding can miss: a service name typed in
+Latin script inside an Arabic sentence, or a figure. It reaches 1.000 on the 5 code-switched
+questions, where vector search alone reaches 0.800 — keyword search alone also reaches 1.000 there,
+so fusion is not the only ranking that handles them, but it is the only one that handles them
+without giving up the embedding's overall lead. Gulf dialect is the one group where fusion scores
+below both methods on their own, 0.800 against 0.867 for each, over 15 questions.
 
-Weighting the fusion towards the stronger vector ranking was tried and reverted: the sweep moved the
-overall figures by less than one question in a hundred and cost the code-switched case outright. The
-weights exist in the code and are set to one.
+A weighted fusion was swept rather than left untried: weighting towards the stronger vector ranking
+moved the overall figures by under one question in 100 and lost the code-switched case outright,
+1.000 to 0.800, so the weights stay equal and are in the code at one. That was an earlier sweep,
+over 100 questions, measured on the same questions its own figures came from — not a held-out
+result — and it has not been re-run on the current 110.
 
 A small preference is applied to passages in the reader's own language. Both languages are always
 searched, but when two passages say the same thing, the one in the reader's language is the better
@@ -179,7 +183,8 @@ citation.
 
 ### Why no vector database
 
-The corpus is a few hundred passages. The dense side is a single NumPy array of about a megabyte, and
+The corpus is a few hundred passages. The dense side is a single NumPy array of a megabyte and a
+half, and
 an exhaustive cosine similarity over it is a matrix multiply that finishes in well under a
 millisecond. A server would add a process, a protocol and a failure mode in exchange for approximate
 search the corpus is far too small to need.
@@ -233,7 +238,7 @@ Raw cosine similarity is an absolute measure and does separate them:
 The distributions overlap, and honestly so: "how do I renew my driving licence" really is close to
 the traffic services in the corpus. So the floor is set at 0.50, *below* every answerable question
 rather than between the two groups. It rejects nothing the catalogue can answer and catches four of
-the six out-of-scope questions before any model runs. The remaining two are the genuinely adjacent
+the six out-of-scope questions before any model runs. The remaining two are the adjacent
 government services, left to the prompt, which can see the passages and say they cover something
 else. A higher floor would start refusing questions the catalogue does answer, which is worse.
 
@@ -243,14 +248,15 @@ The prompt has one job: get a small model to restate retrieved text accurately, 
 language, with a citation against each claim, and to say it does not know rather than fill a gap.
 
 The default generation model is **`gemma3:4b`**, chosen by measurement rather than preference. It
-was compared with `qwen3:4b-instruct-2507-q4_K_M` over the same 130 questions and with `qwen3:4b`
-on a fixed subset, on one composite score weighting key facts, citations, answer language,
-guardrail behaviour and speed. `gemma3:4b` leads on accuracy — key facts 0.726 against 0.663 — and
-the two instruction models are within half a second of each other on time to first token, so the
-choice is an accuracy one. `qwen3:4b` is excluded: it reasons before answering, the provider gives
-no way to switch that off, and half of its answers came back empty because the whole token budget
-went on reasoning the reader never sees. `eval/results.md` carries the figures, the weights and the
-bounds of the speed scale.
+was compared with `qwen3:4b-instruct-2507-q4_K_M` over the same 130 questions and with `qwen3:4b` on
+a fixed subset, on one composite score weighting key facts, citations, answer language, guardrail
+behaviour and speed. `gemma3:4b` leads on accuracy — key facts 0.826 against 0.755 scored on the
+variant of a field each question asks about, and 0.719 against 0.657 scored against every figure the
+field states — and the two instruction models are within half a second of each other on time to
+first token, so the choice is an accuracy one. `qwen3:4b` is excluded: it reasons before answering,
+the provider gives no way to switch that off, and only 10 of its 20 answers were non-empty, the rest
+of the token budget having gone on reasoning the reader never sees. `eval/results.md` carries the
+figures, the weights and the bounds of the speed scale.
 
 Three things in it are shaped by the model being small:
 
