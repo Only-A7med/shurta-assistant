@@ -20,7 +20,7 @@ import httpx
 
 USER_AGENT = (
     "ShurtaAssistantBot/0.1 (+https://github.com/Only-A7med/shurta-assistant; "
-    "portfolio retrieval-augmented generation demo)"
+    "unofficial question-answering project; contact via the repository)"
 )
 
 MINIMUM_INTERVAL_SECONDS = 2.0
