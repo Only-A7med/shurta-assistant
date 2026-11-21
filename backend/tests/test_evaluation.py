@@ -25,6 +25,7 @@ from shurta.evaluation.answers import (
     SLOW_FIRST_TOKEN_MS,
     ItemResult,
     ModelResult,
+    as_markdown,
     check_citations,
     check_declines,
     check_language,
@@ -807,6 +808,60 @@ class TestPromptStatistics:
             items=[item(prompt_tokens=900), item(used_model=False, prompt_tokens=0)],
         )
         assert result.prompt_tokens_p50 == 900
+
+
+class TestUnreportedAccuracy:
+    """A model that answers half its questions has no accuracy to publish.
+
+    `qwen3:4b` reasons until the token budget is gone and returns nothing for
+    half the subset. Its accuracy columns covered only the half it answered,
+    which reads as the model's score and is not.
+    """
+
+    def test_accuracy_is_reported_when_every_question_was_answered(self) -> None:
+        result = ModelResult(model="m", items=[item(text="an answer"), item(text="another")])
+        assert result.answers_stored == 2
+        assert result.accuracy_reported
+
+    def test_accuracy_is_withheld_when_an_answer_came_back_empty(self) -> None:
+        result = ModelResult(model="m", items=[item(text="an answer"), item(text="")])
+        assert result.answers_stored == 1
+        assert not result.accuracy_reported
+
+    def test_the_report_prints_no_accuracy_figure_and_says_why(self) -> None:
+        answered = ModelResult(model="full", items=[item(text="a"), item(text="b")])
+        partial = ModelResult(
+            model="empty",
+            items=[item(text="a"), item(text="")],
+            selection="subset:latency",
+        )
+        report = as_markdown([answered, partial], chunks_indexed=10)
+        accuracy, speed = report.split("## Speed")[0], report.split("## Speed")[1]
+        assert "| `empty` | 2 (subset) | — | — | — | — | — | — | — |" in accuracy
+        assert "| `empty` *(subset, not comparable)* | — |" in speed
+        # The latency figures are still measurements, and stay.
+        assert "| `empty` | 900 | 4.2 s | 5.0 s" in speed
+        assert (
+            "- `empty`: only 1 of its 2 answers were non-empty, so accuracy is not reported."
+            in report
+        )
+
+    def test_a_model_that_answered_everything_keeps_its_figures(self) -> None:
+        answered = ModelResult(model="full", items=[item(text="a"), item(text="b")])
+        report = as_markdown([answered], chunks_indexed=10)
+        assert "| `full` | 2 | 1.000" in report
+        assert "— " not in report.split("## Speed")[0]
+
+
+class TestPublishedWeights:
+    def test_the_weights_are_named_in_words_and_ordered_by_size(self) -> None:
+        """The report is read by people, not by the attribute names."""
+        report = as_markdown([ModelResult(model="m", items=[item(text="a")])], chunks_indexed=10)
+        assert (
+            "Weights: key facts 30%, speed 25%, citation validity 15%, "
+            "answer language 15%, behaviour 15%." in report
+        )
+        assert "key_fact_recall" not in report
 
 
 # --------------------------------------------------------------------------

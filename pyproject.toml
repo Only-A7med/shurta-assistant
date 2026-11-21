@@ -35,6 +35,12 @@ dev = [
 where = ["backend"]
 include = ["shurta*"]
 
+# The hand-written sections of the answer report are inlined by the report
+# generator, so they travel with it rather than sitting in eval/ beside the
+# generated file.
+[tool.setuptools.package-data]
+"shurta.evaluation" = ["notes/*.md"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

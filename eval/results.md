@@ -9,7 +9,7 @@ Western digits.
 
 ## Accuracy
 
-All 2 models below marked with a plain question count were scored on the **same 130 questions**, so their figures are directly comparable. A row marked *(subset)* was scored on fewer and is not comparable with them.
+Both instruction models were scored on the same 130 questions, so their figures are directly comparable. The subset row is not.
 
 Key facts recalled is scored on the variant of a field each question asks about,
 so a question asking a resident's fee is graded on the resident figure. The next
@@ -21,7 +21,7 @@ score uses the scoped figure.
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `gemma3:4b` | 130 | 0.826 | 0.719 | 0.689 | 1.000 | 0.955 | 1.000 | 0.992 |
 | `qwen3:4b-instruct-2507-q4_K_M` | 130 | 0.755 | 0.657 | 0.541 | 1.000 | 0.973 | 0.985 | 0.992 |
-| `qwen3:4b` | 20 (subset) | 0.344 | 0.458 | 0.400 | 1.000 | 0.400 | 0.500 | 1.000 |
+| `qwen3:4b` | 20 (subset) | — | — | — | — | — | — | — |
 
 ## Speed
 
@@ -31,7 +31,7 @@ score uses the scoped figure.
 | `qwen3:4b-instruct-2507-q4_K_M` | 656 | 9.7 s | 9.7 s | 20.2 s | 13.1 s | 30.6 s | 7.9 |
 | `qwen3:4b` | 662 | 10.1 s | 39.8 s | 67.5 s | 66.9 s | 92.4 s | 8.7 |
 
-- `qwen3:4b`: measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, and half its answers came back empty because the whole token budget went on reasoning the reader never sees. Only 10 of its 20 items carry an answer to re-grade, so its accuracy columns are indicative only.
+- `qwen3:4b`: measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, and half its answers came back empty because the whole token budget went on reasoning the reader never sees. Only 10 of its 20 answers were non-empty, so accuracy is not reported.
 
 ## Time to first token
 
@@ -249,7 +249,7 @@ questions are a known limitation rather than a solved problem.
 
 ## Composite score
 
-One number per model so the choice is reproducible. Weights: key_fact_recall 30%, citation_validity 15%, language_match 15%, behaviour_accuracy 15%, speed 25%.
+One number per model so the choice is reproducible. Weights: key facts 30%, speed 25%, citation validity 15%, answer language 15%, behaviour 15%.
 
 Speed is a quarter of the score rather than a tie-breaker: a model that is
 accurate and takes half a minute to begin answering is not the better choice
@@ -275,9 +275,9 @@ measures the longest prompt rather than how the model feels to use.
 |---|---:|---:|---:|
 | `gemma3:4b` | 0.920 | 0.895 | 10.8 s *(clean)* |
 | `qwen3:4b-instruct-2507-q4_K_M` | 0.898 | 0.902 | 10.4 s *(clean)* |
-| `qwen3:4b` *(subset, not comparable)* | 0.570 | 0.367 | 39.8 s *(clean)* |
+| `qwen3:4b` *(subset, not comparable)* | — | 0.367 | 39.8 s *(clean)* |
 
-The speed component is taken from the `latency` subset for `gemma3:4b`, `qwen3:4b-instruct-2507-q4_K_M`, `qwen3:4b`, measured with nothing else running on the machine, because latency is the only score another process can move. Accuracy comes from the whole question set. Figures marked *(clean)* above come from that run.
+Each model marked *(clean)* above takes its speed component from the `latency` subset, run with nothing else on the machine, because latency is the only score another process can move, while its accuracy comes from the whole question set.
 
 ## Default
 

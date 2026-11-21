@@ -40,9 +40,13 @@ RESULTS_DIR = REPOSITORY_ROOT / "eval"
 RESULTS_MARKDOWN = RESULTS_DIR / "results.md"
 RESULTS_JSON = RESULTS_DIR / "answer-results.json"
 SCORECARD_DIR = RESULTS_DIR / "scorecards"
-LATENCY_NOTE = RESULTS_DIR / "latency-note.md"
-FAILURE_NOTE = RESULTS_DIR / "failure-causes.md"
 SUBSET_DIR = RESULTS_DIR / "subsets"
+
+#: Sections of the report that are written by hand rather than measured, kept
+#: beside the generator that inlines them so that ``eval/`` holds only results.
+NOTE_DIR = Path(__file__).parent / "notes"
+LATENCY_NOTE = NOTE_DIR / "latency-note.md"
+FAILURE_NOTE = NOTE_DIR / "failure-causes.md"
 
 #: The selection name for a run over the whole question set.
 FULL_SELECTION = "all"
@@ -226,6 +230,23 @@ class ModelResult:
     def failures(self) -> int:
         return sum(1 for item in self.items if item.error)
 
+    @property
+    def answers_stored(self) -> int:
+        """How many questions produced an answer at all."""
+        return sum(1 for item in self.items if item.text)
+
+    @property
+    def accuracy_reported(self) -> bool:
+        """Whether every question produced an answer to grade.
+
+        A model that returns nothing for half its questions has accuracy
+        figures covering only the half it answered, which read as the model's
+        score and are not. The published report blanks those columns and says
+        how many answers it has, rather than printing a number over a set of
+        questions nobody can see.
+        """
+        return bool(self.items) and self.answers_stored == len(self.items)
+
     def _percentile(self, values: Sequence[float], fraction: float) -> float:
         if not values:
             return 0.0
@@ -277,6 +298,12 @@ class ModelResult:
             "questions": len(self.items),
             "generated": len(self._generated()),
             "failures": self.failures,
+            "answers_stored": self.answers_stored,
+            # The accuracy figures below cover only the questions that produced
+            # an answer, so a reader taking them from here needs telling when
+            # that is not every question. The published report prints no number
+            # at all in that case.
+            "accuracy_reported": self.accuracy_reported,
             "key_fact_recall": round(self.fact_recall, 4),
             "key_fact_recall_all_figures": round(self.fact_recall_all_figures, 4),
             "key_fact_complete": round(self.fact_complete, 4),
@@ -697,7 +724,7 @@ def rescore(result: ModelResult, key_facts: Mapping[str, KeyFacts]) -> ModelResu
 
 def rescorable(result: ModelResult) -> int:
     """How many of a scorecard's items carry the answer text to re-grade."""
-    return sum(1 for item in result.items if item.text)
+    return result.answers_stored
 
 
 # --- choosing the default ----------------------------------------------------
@@ -711,6 +738,16 @@ WEIGHTS = {
     "language_match": 0.15,
     "behaviour_accuracy": 0.15,
     "speed": 0.25,
+}
+
+#: What each weight is called in the published report, so the reader sees the
+#: thing measured rather than the attribute it is stored in.
+WEIGHT_LABELS = {
+    "key_fact_recall": "key facts",
+    "citation_validity": "citation validity",
+    "language_match": "answer language",
+    "behaviour_accuracy": "behaviour",
+    "speed": "speed",
 }
 
 #: Bounds of the speed component, in milliseconds of median time to first token:
@@ -814,6 +851,16 @@ def _questions_cell(result: ModelResult) -> str:
     return f"{len(result.items)} (subset)"
 
 
+def _subset_clause(results: Sequence[ModelResult]) -> str:
+    """How to refer to the rows scored on fewer questions, if there are any."""
+    subsets = sum(1 for result in results if result.items and not result.comparable)
+    if not subsets:
+        return ""
+    if subsets == 1:
+        return " The subset row is not."
+    return f" The {subsets} subset rows are not."
+
+
 def _comparability_line(results: Sequence[ModelResult]) -> str:
     """State plainly which questions each model was scored on.
 
@@ -823,22 +870,41 @@ def _comparability_line(results: Sequence[ModelResult]) -> str:
     full = [result for result in results if result.comparable and result.items]
     sizes = {len(result.items) for result in full}
     if len(full) > 1 and comparable_on_the_same_questions(full):
+        counted = "Both" if len(full) == 2 else f"All {len(full)}"
         return (
-            f"All {len(full)} models below marked with a plain question count were scored on "
-            f"the **same {sizes.pop()} questions**, so their figures are directly comparable. "
-            "A row marked *(subset)* was scored on fewer and is not comparable with them."
+            f"{counted} instruction models were scored on the same {sizes.pop()} questions, "
+            "so their figures are directly comparable." + _subset_clause(results)
         )
     if len(full) > 1:
         listed = ", ".join(f"`{result.model}` {len(result.items)}" for result in full)
         return (
-            "**These models were not scored on the same questions** "
-            f"({listed}), so the figures below are not comparable with each other and no "
-            "default is chosen from them. Re-run the shorter ones over the whole set."
+            f"These models were not scored on the same questions ({listed}), so the figures "
+            "below are not comparable with each other and no default is chosen from them. "
+            "Re-run the shorter ones over the whole set."
         )
-    return (
-        "One model is reported here, so there is no model-to-model comparison. A row marked "
-        "*(subset)* was scored on fewer questions than the full set."
+    return "One model is reported, so there is no model-to-model comparison." + (
+        _subset_clause(results) or " Every row covers the whole question set."
     )
+
+
+def _model_note(result: ModelResult) -> str:
+    """The footnote for one model: what was passed in, plus what the data says.
+
+    The missing-answers sentence is derived rather than written by hand,
+    because the columns it explains are blanked from the same count.
+    """
+    parts: list[str] = []
+    if result.note:
+        parts.append(result.note.rstrip("."))
+    if result.items and not result.accuracy_reported:
+        parts.append(
+            f"only {result.answers_stored} of its {len(result.items)} answers were "
+            "non-empty, so accuracy is not reported"
+        )
+    if not parts:
+        return ""
+    body = ". ".join([parts[0]] + [part[0].upper() + part[1:] for part in parts[1:]])
+    return f"- `{result.model}`: {body}."
 
 
 def as_markdown(
@@ -877,13 +943,20 @@ def as_markdown(
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for result in results:
-        lines.append(
-            f"| `{result.model}` | {_questions_cell(result)} | {result.fact_recall:.3f} "
-            f"| {result.fact_recall_all_figures:.3f} "
-            f"| {result.fact_complete:.3f} | {result.citation_validity:.3f} "
-            f"| {result.citation_presence:.3f} | {result.language_match:.3f} "
-            f"| {result.behaviour_accuracy:.3f} |"
-        )
+        if result.accuracy_reported:
+            scores = [
+                result.fact_recall,
+                result.fact_recall_all_figures,
+                result.fact_complete,
+                result.citation_validity,
+                result.citation_presence,
+                result.language_match,
+                result.behaviour_accuracy,
+            ]
+            cells = " ".join(f"| {score:.3f}" for score in scores)
+        else:
+            cells = "| — " * 7
+        lines.append(f"| `{result.model}` | {_questions_cell(result)} {cells.strip()} |")
 
     lines += [
         "",
@@ -903,29 +976,31 @@ def as_markdown(
             f"| {result.tokens_per_second:.1f} |"
         )
 
-    notes = [result for result in results if result.note]
-    if notes:
+    footnotes = [_model_note(result) for result in results]
+    written = [note for note in footnotes if note]
+    if written:
         lines += [""]
-        lines += [f"- `{result.model}`: {result.note}" for result in notes]
+        lines += written
 
     # The record of the latency work is written by hand and inlined here, so
     # this file stays the one place the speed figures live even though it is
-    # regenerated on every run.
-    if LATENCY_NOTE.exists():
-        lines += ["", LATENCY_NOTE.read_text(encoding="utf-8").strip()]
-
-    # Why the answers that were wrong were wrong, counted by cause. Written by
-    # hand from the local analysis, because the causes are read off the answers
-    # and the passages, neither of which is committed.
-    if FAILURE_NOTE.exists():
-        lines += ["", FAILURE_NOTE.read_text(encoding="utf-8").strip()]
+    # regenerated on every run. The same goes for the causes of the wrong
+    # answers, which are read off the answers and the passages, neither of
+    # which is committed. Both are read without an existence check: they ship
+    # beside this module, so a missing one is a packaging fault and should say
+    # so rather than quietly drop a section of the report.
+    lines += ["", LATENCY_NOTE.read_text(encoding="utf-8").strip()]
+    lines += ["", FAILURE_NOTE.read_text(encoding="utf-8").strip()]
 
     lines += [
         "",
         "## Composite score",
         "",
         "One number per model so the choice is reproducible. Weights: "
-        + ", ".join(f"{name} {weight:.0%}" for name, weight in WEIGHTS.items())
+        + ", ".join(
+            f"{WEIGHT_LABELS[name]} {weight:.0%}"
+            for name, weight in sorted(WEIGHTS.items(), key=lambda pair: -pair[1])
+        )
         + ".",
         "",
         "Speed is a quarter of the score rather than a tie-breaker: a model that is",
@@ -958,9 +1033,15 @@ def as_markdown(
         suffix = "" if result.comparable else " *(subset, not comparable)*"
         used = reference.get(result.model, result.first_token_p50)
         marker = " *(clean)*" if result.model in reference else ""
+        # A composite over accuracy columns that are not reported would be a
+        # number standing for a measurement that was not made.
+        total = (
+            f"{composite(result, speed_reference=reference):.3f}"
+            if result.accuracy_reported
+            else "—"
+        )
         lines.append(
-            f"| `{result.model}`{suffix} "
-            f"| {composite(result, speed_reference=reference):.3f} "
+            f"| `{result.model}`{suffix} | {total} "
             f"| {speed_score(result, first_token_p50_ms=reference.get(result.model)):.3f} "
             f"| {used / 1000:.1f} s{marker} |"
         )
@@ -1114,13 +1195,11 @@ def main(
     if speed_from_subset:
         speed_reference = speed_reference_from_subset(candidates, speed_from_subset)
         if speed_reference:
-            named = ", ".join(f"`{model}`" for model in speed_reference)
             speed_source = (
-                "The speed component is taken from the "
-                f"`{speed_from_subset}` subset for {named}, measured with nothing else "
-                "running on the machine, because latency is the only score another "
-                "process can move. Accuracy comes from the whole question set. Figures "
-                "marked *(clean)* above come from that run."
+                "Each model marked *(clean)* above takes its speed component from the "
+                f"`{speed_from_subset}` subset, run with nothing else on the machine, "
+                "because latency is the only score another process can move, while its "
+                "accuracy comes from the whole question set."
             )
         else:
             print(f"No {speed_from_subset} subset scorecard found; using each run's own median.")

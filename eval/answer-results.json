@@ -1,5 +1,5 @@
 {
- "measured_at": "2026-11-21T10:20:03.403884+00:00",
+ "measured_at": "2026-11-21T16:11:49.652453+00:00",
  "chunks_indexed": 372,
  "questions": 130,
  "weights": {
@@ -22,6 +22,8 @@
    "questions": 130,
    "generated": 112,
    "failures": 0,
+   "answers_stored": 130,
+   "accuracy_reported": true,
    "key_fact_recall": 0.8258,
    "key_fact_recall_all_figures": 0.7191,
    "key_fact_complete": 0.6885,
@@ -45,6 +47,8 @@
    "questions": 130,
    "generated": 112,
    "failures": 0,
+   "answers_stored": 130,
+   "accuracy_reported": true,
    "key_fact_recall": 0.7548,
    "key_fact_recall_all_figures": 0.6573,
    "key_fact_complete": 0.541,
@@ -64,10 +68,12 @@
   {
    "model": "qwen3:4b",
    "selection": "subset:latency",
-   "note": "measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, and half its answers came back empty because the whole token budget went on reasoning the reader never sees. Only 10 of its 20 items carry an answer to re-grade, so its accuracy columns are indicative only.",
+   "note": "measured on the 20-question latency subset only, so not comparable with the full runs above. It is a reasoning-only build whose reasoning cannot be switched off, and half its answers came back empty because the whole token budget went on reasoning the reader never sees.",
    "questions": 20,
    "generated": 20,
    "failures": 0,
+   "answers_stored": 10,
+   "accuracy_reported": false,
    "key_fact_recall": 0.3438,
    "key_fact_recall_all_figures": 0.4583,
    "key_fact_complete": 0.4,
