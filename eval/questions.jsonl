@@ -98,6 +98,16 @@
 {"id": "dia-008", "question": "I need شهادة براءة ذمة مرورية, how much is it?", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["traffic-clearance-certificate"], "expected_fields": ["fees"]}
 {"id": "dia-009", "question": "أبي أطلب home security أثناء السفر، شو المستندات؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["smart-home-security"], "expected_fields": ["required_documents", "eligibility"]}
 {"id": "dia-010", "question": "وين أروح لو بغيت أفتح criminal complaint؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["file-criminal-complaint"], "expected_fields": ["description", "channels"]}
+{"id": "dia-011", "question": "بكم تصريح تغيير لون السيارة؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["vehicle-colour-change-permit"], "expected_fields": ["fees"]}
+{"id": "dia-012", "question": "بكم تطلع شهادة بحث الحالة المرورية؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["traffic-status-certificate"], "expected_fields": ["fees"]}
+{"id": "dia-013", "question": "ضاع مني جوالي، بكم أسوي بلاغ مفقودات؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["report-lost-item"], "expected_fields": ["fees"]}
+{"id": "dia-014", "question": "شو الأوراق اللي يبيلها حجز المرافق الرياضية؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["sports-facilities-booking"], "expected_fields": ["required_documents"]}
+{"id": "dia-015", "question": "عندي شيك مرتجع، شو المستندات اللي أبيها عشان أبلغ عنه؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["report-bounced-cheque"], "expected_fields": ["required_documents"]}
+{"id": "dia-016", "question": "وين أقدر أطلب تصريح زيارة موقوف؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["detainee-visit-permit"], "expected_fields": ["channels", "description"]}
+{"id": "dia-017", "question": "كم يبيلها وقت عشان توافقون على تأمين فعالية؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["event-security-permit"], "expected_fields": ["processing_time"]}
+{"id": "dia-018", "question": "بكم محاضرة السلامة المرورية؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["traffic-training-courses"], "expected_fields": ["fees"]}
+{"id": "dia-019", "question": "شو الأوراق المطلوبة لتصريح إدخال جثمان؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["corpse-entry-permit"], "expected_fields": ["required_documents"]}
+{"id": "dia-020", "question": "شو اللي أبيه عشان آخذ تصريح دخول القيادة العامة؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["headquarters-entry-permit"], "expected_fields": ["required_documents"]}
 {"id": "oos-001", "question": "How do I renew my passport?", "language": "en", "expected_behaviour": "out_of_scope", "note": "Immigration, not a police service in this catalogue"}
 {"id": "oos-002", "question": "What is the weather in Dubai tomorrow?", "language": "en", "expected_behaviour": "out_of_scope"}
 {"id": "oos-003", "question": "كيف أستخرج رخصة قيادة جديدة؟", "language": "ar", "expected_behaviour": "out_of_scope", "note": "Issued by the roads authority, not covered by this catalogue"}

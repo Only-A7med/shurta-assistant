@@ -1,16 +1,16 @@
 {
- "measured_at": "2026-11-20T08:55:24.748797+00:00",
+ "measured_at": "2026-11-21T05:17:23.550033+00:00",
  "embedding_model": "bge-m3",
  "chunks_indexed": 372,
- "questions_scored": 100,
+ "questions_scored": 110,
  "methods": {
   "bm25": {
    "overall": {
-    "questions": 100,
-    "recall@1": 0.81,
-    "recall@3": 0.9,
-    "recall@5": 0.94,
-    "mrr": 0.8662
+    "questions": 110,
+    "recall@1": 0.8273,
+    "recall@3": 0.9091,
+    "recall@5": 0.9455,
+    "mrr": 0.8784
    },
    "en": {
     "questions": 45,
@@ -27,11 +27,11 @@
     "mrr": 0.8815
    },
    "gulf": {
-    "questions": 5,
-    "recall@1": 0.6,
-    "recall@3": 0.8,
-    "recall@5": 0.8,
-    "mrr": 0.7286
+    "questions": 15,
+    "recall@1": 0.8667,
+    "recall@3": 0.9333,
+    "recall@5": 0.9333,
+    "mrr": 0.9095
    },
    "code_switched": {
     "questions": 5,
@@ -43,11 +43,11 @@
   },
   "dense": {
    "overall": {
-    "questions": 100,
-    "recall@1": 0.91,
-    "recall@3": 0.95,
-    "recall@5": 0.97,
-    "mrr": 0.9359
+    "questions": 110,
+    "recall@1": 0.9182,
+    "recall@3": 0.9545,
+    "recall@5": 0.9727,
+    "mrr": 0.9418
    },
    "en": {
     "questions": 45,
@@ -64,11 +64,11 @@
     "mrr": 0.96
    },
    "gulf": {
-    "questions": 5,
-    "recall@1": 0.6,
+    "questions": 15,
+    "recall@1": 0.8667,
     "recall@3": 1.0,
     "recall@5": 1.0,
-    "mrr": 0.8
+    "mrr": 0.9333
    },
    "code_switched": {
     "questions": 5,
@@ -80,11 +80,11 @@
   },
   "hybrid": {
    "overall": {
-    "questions": 100,
-    "recall@1": 0.89,
-    "recall@3": 0.94,
-    "recall@5": 0.96,
-    "mrr": 0.9236
+    "questions": 110,
+    "recall@1": 0.9,
+    "recall@3": 0.9455,
+    "recall@5": 0.9636,
+    "mrr": 0.9306
    },
    "en": {
     "questions": 45,
@@ -101,11 +101,11 @@
     "mrr": 0.9398
    },
    "gulf": {
-    "questions": 5,
-    "recall@1": 0.4,
-    "recall@3": 0.8,
+    "questions": 15,
+    "recall@1": 0.8,
+    "recall@3": 0.9333,
     "recall@5": 1.0,
-    "mrr": 0.6167
+    "mrr": 0.8722
    },
    "code_switched": {
     "questions": 5,
