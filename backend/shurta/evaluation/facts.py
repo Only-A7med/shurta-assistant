@@ -63,6 +63,24 @@ MINIMUM_DOCUMENT_TOKENS = 2
 #: condition label rather than listing them flat.
 GROUP_SEPARATOR = " — "
 
+#: The variants of a field a question can ask about, and the category words a
+#: field's own labels use for each. A fee field states a figure per applicant
+#: category, one per line, and a question asking for one of them should be
+#: graded on that one: requiring every figure in the field penalises a correctly
+#: scoped answer. A question that asks about the whole field names no variant
+#: and keeps every figure.
+#:
+#: Only category words, in normalised spelling, and never a figure. Matched
+#: against normalised text, so any Arabic term here must be written the way the
+#: normaliser writes it.
+FIELD_VARIANTS: dict[str, tuple[str, ...]] = {
+    "citizen": ("citizen", "مواطن"),
+    "resident": ("resident", "مقيم"),
+    "outside_country": ("outside", "abroad", "خارج"),
+    "in_person": ("in person", "شخصيا", "حضوريا"),
+    "knowledge_fee": ("knowledge", "معرفه"),
+}
+
 
 def amounts_in(text: str) -> list[str]:
     """Every monetary figure in the text, as bare numbers without separators."""
@@ -114,10 +132,44 @@ def documents_in(items: list[str]) -> list[str]:
     return phrases
 
 
+def mentions_variant(text: str, variant: str) -> bool:
+    """Whether a line of a field is the one stating the named variant."""
+    normalised = normalise(text)
+    return any(term in normalised for term in FIELD_VARIANTS[variant])
+
+
+def narrow(content: str, variant: str) -> str:
+    """The lines of a field that state the named variant, or all of them.
+
+    A fee field is written one labelled figure per line, so the variant a
+    question asks about is a line of it.
+    """
+    if not variant:
+        return content
+    return "\n".join(line for line in content.splitlines() if mentions_variant(line, variant))
+
+
+def narrow_items(items: list[str], variant: str) -> list[str]:
+    """The entries of a list field that belong to the named variant.
+
+    A flattened entry is matched on the condition it was grouped under, not on
+    the document itself, so a document whose name happens to carry a category
+    word is not mistaken for that category's requirement.
+    """
+    if not variant:
+        return items
+    return [item for item in items if mentions_variant(document_condition(item), variant)]
+
+
 def extract(
-    service: Service, fields: list[str], language: Language
+    service: Service, fields: list[str], language: Language, variant: str = ""
 ) -> tuple[list[str], list[str], list[str]]:
-    """The amounts, durations and documents a given field of a service states."""
+    """The amounts, durations and documents a given field of a service states.
+
+    ``variant`` narrows the field to one of ``FIELD_VARIANTS`` — the applicant
+    category a question asks about — and is empty for a question that asks about
+    the field as a whole.
+    """
     amounts: list[str] = []
     durations: list[str] = []
     documents: list[str] = []
@@ -130,16 +182,16 @@ def extract(
 
         if isinstance(content, list):
             if field == "required_documents":
-                documents.extend(
-                    phrase for phrase in documents_in(content) if phrase not in documents
-                )
+                phrases = documents_in(narrow_items(content, variant))
+                documents.extend(phrase for phrase in phrases if phrase not in documents)
             continue
 
+        wanted = narrow(content, variant)
         if field == "fees":
-            amounts.extend(amount for amount in amounts_in(content) if amount not in amounts)
+            amounts.extend(amount for amount in amounts_in(wanted) if amount not in amounts)
         elif field == "processing_time":
             durations.extend(
-                duration for duration in durations_in(content) if duration not in durations
+                duration for duration in durations_in(wanted) if duration not in durations
             )
 
     return amounts, durations, documents
@@ -164,6 +216,16 @@ def contains_duration(answer: str, duration: str) -> bool:
     if unit == "working_day":
         return f"{count} day" in found
     return False
+
+
+def document_condition(document: str) -> str:
+    """The condition a flattened entry was grouped under, or the whole entry.
+
+    The whole entry when there is no grouping, so an ungrouped list is matched
+    on its own text rather than on nothing.
+    """
+    condition, separator, _name = document.rpartition(GROUP_SEPARATOR)
+    return condition if separator else document
 
 
 def document_name(document: str) -> str:

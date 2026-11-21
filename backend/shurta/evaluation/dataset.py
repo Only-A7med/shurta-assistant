@@ -1,6 +1,7 @@
 """The evaluation set, and the key facts derived from it.
 
-A question names a service and the *field* an answer has to get right, not the
+A question names a service and the *field* an answer has to get right — and, where
+it asks about one variant of that field, the category label for it — never the
 expected fee itself. So the expectations stay correct when the official page
 changes, and no collected content has to live in this repository: the figures are
 derived locally by ``python -m shurta eval prepare`` into an untracked file.
@@ -13,9 +14,10 @@ from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from shurta.config import REPOSITORY_ROOT
+from shurta.evaluation.facts import FIELD_VARIANTS
 from shurta.models import Language
 
 QUESTIONS_FILE = REPOSITORY_ROOT / "eval" / "questions.jsonl"
@@ -54,8 +56,24 @@ class Question(BaseModel):
     expected_fields: list[str] = Field(default_factory=list)
     """Service fields an answer must draw its facts from, such as ``fees``."""
 
+    expected_variant: str = ""
+    """Which variant of those fields the question asks about, as one of the
+    category labels in ``FIELD_VARIANTS``: the applicant category for a fee, for
+    instance. A fee field states a figure per category, and a question asking
+    for one of them was graded against every figure in the field, so a correctly
+    scoped answer scored as incomplete. Empty where the question asks about the
+    whole field, and empty where the wording is ambiguous.
+    """
+
     expected_behaviour: Behaviour = Behaviour.ANSWER
     note: str = ""
+
+    @field_validator("expected_variant")
+    @classmethod
+    def _known_variant(cls, value: str) -> str:
+        if value and value not in FIELD_VARIANTS:
+            raise ValueError(f"unknown field variant {value!r}; add it to FIELD_VARIANTS")
+        return value
 
     @property
     def is_retrieval_item(self) -> bool:
@@ -76,8 +94,34 @@ class KeyFacts(BaseModel):
     durations: list[str] = Field(default_factory=list)
     documents: list[str] = Field(default_factory=list)
 
+    all_amounts: list[str] = Field(default_factory=list)
+    all_durations: list[str] = Field(default_factory=list)
+    all_documents: list[str] = Field(default_factory=list)
+    """Every fact the named fields state, before the question's variant narrows
+    them. Kept so the report can show the old, unscoped recall beside the scoped
+    one and the change is visible. Identical to the scoped lists for a question
+    that names no variant."""
+
     def __bool__(self) -> bool:
         return bool(self.amounts or self.durations or self.documents)
+
+    @property
+    def narrowed(self) -> bool:
+        """Whether the question's variant dropped any fact the fields state."""
+        return (self.amounts, self.durations, self.documents) != (
+            self.all_amounts,
+            self.all_durations,
+            self.all_documents,
+        )
+
+    def every_figure(self) -> KeyFacts:
+        """The same question graded against every figure its fields state."""
+        return KeyFacts(
+            id=self.id,
+            amounts=self.all_amounts,
+            durations=self.all_durations,
+            documents=self.all_documents,
+        )
 
 
 def load_questions(path: Path = QUESTIONS_FILE) -> list[Question]:

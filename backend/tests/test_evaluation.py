@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from conftest import FakeModelClient
+from pydantic import ValidationError
 
 from shurta.answering import AnswerPipeline, ResponseKind
 from shurta.chunking import chunk_corpus
@@ -47,6 +48,7 @@ from shurta.evaluation.answers import (
 )
 from shurta.evaluation.dataset import Behaviour, KeyFacts, Question, load_questions, summarise
 from shurta.evaluation.facts import (
+    FIELD_VARIANTS,
     amounts_in,
     contains_amount,
     contains_document,
@@ -54,10 +56,12 @@ from shurta.evaluation.facts import (
     document_name,
     durations_in,
     extract,
+    narrow,
+    narrow_items,
 )
 from shurta.evaluation.prepare import build_key_facts
 from shurta.evaluation.retrieval import evaluate_retrieval
-from shurta.models import Corpus, Language
+from shurta.models import Corpus, Language, Service
 from shurta.retrieval.hybrid import HybridRetriever
 from shurta.retrieval.store import SearchIndex
 
@@ -236,6 +240,134 @@ class TestExtraction:
         )
         assert amounts == []
         assert documents == []
+
+
+# --------------------------------------------------------------------------
+# Scoping a question to one variant of a field
+# --------------------------------------------------------------------------
+#: A fee field in the shape the source writes one: a labelled figure per line.
+FEE_FIELD = "Citizen: 75 dirhams\nResident: 150 dirhams"
+
+
+class TestFieldVariants:
+    """A fee field states a figure per applicant category, one per line.
+
+    A question asking a resident's fee was graded against every figure in the
+    field — the citizen's, the overseas one, the surcharge — so an answer that
+    gave exactly the figure asked for scored as incomplete. A question now
+    records which variant it asks about, and only that variant's facts are
+    derived. A question that asks about the whole field records none and keeps
+    every figure, which is what makes the fix a question-set change rather than
+    a looser grader.
+    """
+
+    @pytest.fixture
+    def service(self, corpus: Corpus) -> Service:
+        return corpus.by_id()["good-conduct-certificate"]
+
+    def scoped_question(self, variant: str) -> Question:
+        return Question(
+            id="q",
+            question="How much does a good conduct certificate cost for a resident?",
+            language=Language.EN,
+            expected_service_ids=["good-conduct-certificate"],
+            expected_fields=["fees"],
+            expected_variant=variant,
+        )
+
+    def test_a_scoped_question_derives_only_its_variants_facts(
+        self, corpus: Corpus, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shurta.evaluation.prepare as prepare
+
+        monkeypatch.setattr(prepare, "load_questions", lambda: [self.scoped_question("resident")])
+        entry = build_key_facts(corpus)[0]
+        assert entry.amounts == ["150"]
+        assert entry.narrowed
+
+    def test_an_unscoped_question_still_derives_every_figure(
+        self, corpus: Corpus, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import shurta.evaluation.prepare as prepare
+
+        monkeypatch.setattr(prepare, "load_questions", lambda: [self.scoped_question("")])
+        entry = build_key_facts(corpus)[0]
+        assert entry.amounts == ["75", "150", "240", "15"]
+        assert not entry.narrowed
+
+    def test_every_figure_is_kept_beside_the_scoped_ones(
+        self, corpus: Corpus, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """So the report can show the old recall beside the new one."""
+        import shurta.evaluation.prepare as prepare
+
+        monkeypatch.setattr(prepare, "load_questions", lambda: [self.scoped_question("resident")])
+        entry = build_key_facts(corpus)[0]
+        assert entry.all_amounts == ["75", "150", "240", "15"]
+        assert entry.every_figure().amounts == entry.all_amounts
+
+    def test_each_variant_picks_out_its_own_figure(self, service: Service) -> None:
+        for variant, expected in (("citizen", "75"), ("resident", "150")):
+            amounts, _durations, _documents = extract(service, ["fees"], Language.EN, variant)
+            assert amounts == [expected], variant
+
+    def test_the_arabic_side_scopes_to_the_same_figure(self, service: Service) -> None:
+        amounts, _durations, _documents = extract(service, ["fees"], Language.AR, "resident")
+        assert amounts == ["150"]
+
+    def test_a_scoped_document_list_keeps_only_its_condition(self, service: Service) -> None:
+        _amounts, _durations, documents = extract(
+            service, ["required_documents"], Language.EN, "outside_country"
+        )
+        assert documents
+        assert all("abroad" in phrase for phrase in documents)
+
+    def test_a_document_is_matched_on_its_condition_not_its_name(self) -> None:
+        """Or a document whose name carries a category word joins the wrong group."""
+        items = [
+            "Applying from abroad — copy of the passport",
+            "Individuals — proof of an address outside the emirate",
+        ]
+        assert narrow_items(items, "outside_country") == [items[0]]
+
+    def test_narrowing_to_nothing_yields_nothing_rather_than_everything(self) -> None:
+        """A variant that matches no line must not silently fall back."""
+        assert narrow(FEE_FIELD, "in_person") == ""
+
+    def test_an_unscoped_field_is_left_whole(self) -> None:
+        assert narrow(FEE_FIELD, "") == FEE_FIELD
+
+    def test_an_unknown_variant_label_is_refused(self) -> None:
+        """A typo in the question set would otherwise silently derive no facts."""
+        with pytest.raises(ValidationError):
+            self.scoped_question("tourists")
+
+    def test_the_committed_questions_use_the_scoping(self) -> None:
+        questions = load_questions()
+        scoped = [question for question in questions if question.expected_variant]
+        assert scoped
+        for question in scoped:
+            assert question.expected_variant in FIELD_VARIANTS
+            assert question.expected_fields, question.id
+
+    def test_both_recall_figures_are_reported(self) -> None:
+        """The scoped figure and the all-figures one, so the change is visible."""
+        result = ModelResult(
+            model="m",
+            items=[item(facts_expected=1, facts_found=1, facts_expected_all=5, facts_found_all=1)],
+        )
+        assert result.fact_recall == 1.0
+        assert result.fact_recall_all_figures == 0.2
+
+    def test_rescoring_counts_a_stored_answer_both_ways(self) -> None:
+        facts = KeyFacts(
+            id="x",
+            amounts=["200"],
+            all_amounts=["100", "200", "300"],
+        )
+        regraded = rescore_item(item(text="The fee is AED 200 [1].", available_citations=2), facts)
+        assert (regraded.facts_found, regraded.facts_expected) == (1, 1)
+        assert (regraded.facts_found_all, regraded.facts_expected_all) == (1, 3)
 
 
 # --------------------------------------------------------------------------

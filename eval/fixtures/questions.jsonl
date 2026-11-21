@@ -1,17 +1,17 @@
-{"id": "fx-en-001", "question": "How much does a good conduct certificate cost for a resident?", "language": "en", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["fees"]}
+{"id": "fx-en-001", "question": "How much does a good conduct certificate cost for a resident?", "language": "en", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["fees"], "expected_variant": "resident"}
 {"id": "fx-en-002", "question": "How long does a good conduct certificate take to issue?", "language": "en", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["processing_time"]}
-{"id": "fx-en-003", "question": "What documents do I need for a good conduct certificate when applying from abroad?", "language": "en", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["required_documents"]}
+{"id": "fx-en-003", "question": "What documents do I need for a good conduct certificate when applying from abroad?", "language": "en", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["required_documents"], "expected_variant": "outside_country"}
 {"id": "fx-en-004", "question": "What is the service fee charged on each traffic fine?", "language": "en", "expected_service_ids": ["traffic-fine-payment"], "expected_fields": ["fees"]}
 {"id": "fx-en-005", "question": "When can I pay traffic fines in instalments?", "language": "en", "expected_service_ids": ["traffic-fine-payment"], "expected_fields": ["eligibility", "description"]}
 {"id": "fx-en-006", "question": "What do I need to report a minor accident?", "language": "en", "expected_service_ids": ["minor-accident-report"], "expected_fields": ["required_documents"]}
 {"id": "fx-en-007", "question": "How do I report online fraud?", "language": "en", "expected_service_ids": ["cybercrime-report"], "expected_fields": ["description", "channels"]}
 {"id": "fx-en-008", "question": "How can I have my home watched while I am travelling?", "language": "en", "expected_service_ids": ["home-security-while-travelling"], "expected_fields": ["description", "channels"]}
-{"id": "fx-ar-001", "question": "كم تبلغ رسوم شهادة حسن السيرة والسلوك للمقيم؟", "language": "ar", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["fees"]}
+{"id": "fx-ar-001", "question": "كم تبلغ رسوم شهادة حسن السيرة والسلوك للمقيم؟", "language": "ar", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["fees"], "expected_variant": "resident"}
 {"id": "fx-ar-002", "question": "كم تستغرق مدة إصدار شهادة حسن السيرة والسلوك؟", "language": "ar", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["processing_time"]}
 {"id": "fx-ar-003", "question": "ما المستندات المطلوبة لبلاغ حادث بسيط؟", "language": "ar", "expected_service_ids": ["minor-accident-report"], "expected_fields": ["required_documents"]}
 {"id": "fx-ar-004", "question": "كيف أبلّغ عن جريمة إلكترونية؟", "language": "ar", "expected_service_ids": ["cybercrime-report"], "expected_fields": ["description", "channels"]}
 {"id": "fx-dia-001", "question": "وين أسدد المخالفات المرورية؟", "language": "ar", "dialect": "gulf", "expected_service_ids": ["traffic-fine-payment"], "expected_fields": ["channels", "description"]}
-{"id": "fx-dia-002", "question": "أبغى أسوي good conduct certificate، كم الرسوم للمقيم؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["fees"]}
+{"id": "fx-dia-002", "question": "أبغى أسوي good conduct certificate، كم الرسوم للمقيم؟", "language": "ar", "dialect": "code_switched", "expected_service_ids": ["good-conduct-certificate"], "expected_fields": ["fees"], "expected_variant": "resident"}
 {"id": "fx-eme-001", "question": "Help, there is a fire in my building", "language": "en", "expected_behaviour": "emergency"}
 {"id": "fx-eme-002", "question": "النجدة، هناك شخص يحاول دخول منزلي الآن", "language": "ar", "expected_behaviour": "emergency"}
 {"id": "fx-per-001", "question": "What is the status of my accident report?", "language": "en", "expected_behaviour": "refuse"}

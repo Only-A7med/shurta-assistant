@@ -135,6 +135,12 @@ class ItemResult:
     """How many passages the answer could have cited, which is what makes a
     stored answer re-checkable for invented citations."""
 
+    facts_expected_all: int = 0
+    facts_found_all: int = 0
+    """The same count against every figure the question's fields state, rather
+    than only the variant it asks about. Reported beside the scoped figure so
+    the effect of scoping the questions is visible."""
+
     @property
     def facts_correct(self) -> bool:
         """Whether every checkable fact appeared. Vacuously true with none."""
@@ -170,6 +176,20 @@ class ModelResult:
         """Share of all checkable facts that appeared in an answer."""
         expected = sum(item.facts_expected for item in self._with_facts())
         found = sum(item.facts_found for item in self._with_facts())
+        return found / expected if expected else 0.0
+
+    @property
+    def fact_recall_all_figures(self) -> float:
+        """Share recalled when every figure a field states is required.
+
+        What the same answers scored before the questions recorded which variant
+        they ask about: a question asking a resident's fee was graded against
+        the citizen and overseas figures too. Kept as a second column so the
+        change is visible rather than only the improved number.
+        """
+        items = [item for item in self.items if item.facts_expected_all > 0 and not item.error]
+        expected = sum(item.facts_expected_all for item in items)
+        found = sum(item.facts_found_all for item in items)
         return found / expected if expected else 0.0
 
     @property
@@ -258,6 +278,7 @@ class ModelResult:
             "generated": len(self._generated()),
             "failures": self.failures,
             "key_fact_recall": round(self.fact_recall, 4),
+            "key_fact_recall_all_figures": round(self.fact_recall_all_figures, 4),
             "key_fact_complete": round(self.fact_complete, 4),
             "citation_validity": round(self.citation_validity, 4),
             "citation_presence": round(self.citation_presence, 4),
@@ -399,6 +420,15 @@ def count_facts(text: str, facts: KeyFacts) -> tuple[int, int]:
     return found, expected
 
 
+def count_facts_both_ways(text: str, facts: KeyFacts | None) -> tuple[int, int, int, int]:
+    """The scoped fact count, and the count against every figure the fields state."""
+    if facts is None:
+        return 0, 0, 0, 0
+    found, expected = count_facts(text, facts)
+    found_all, expected_all = count_facts(text, facts.every_figure())
+    return found, expected, found_all, expected_all
+
+
 def behaviour_correct_for(
     expected_behaviour: Behaviour, kind: ResponseKind, text: str, language: Language
 ) -> bool:
@@ -451,7 +481,7 @@ async def score_question(
 
     context = answer.context
     valid, cited = check_citations(answer.text, len(context.citations))
-    found, expected_facts = count_facts(answer.text, facts) if facts else (0, 0)
+    found, expected_facts, found_all, expected_all = count_facts_both_ways(answer.text, facts)
 
     return ItemResult(
         id=question.id,
@@ -465,6 +495,8 @@ async def score_question(
         cited_count=cited,
         facts_expected=expected_facts,
         facts_found=found,
+        facts_expected_all=expected_all,
+        facts_found_all=found_all,
         first_token_ms=answer.first_token_ms,
         total_ms=answer.total_ms,
         tokens_per_second=answer.tokens_per_second,
@@ -633,12 +665,14 @@ def rescore_item(item: ItemResult, facts: KeyFacts | None) -> ItemResult:
     """
     if not item.text:
         return item
-    found, expected = count_facts(item.text, facts) if facts else (0, 0)
+    found, expected, found_all, expected_all = count_facts_both_ways(item.text, facts)
     valid, cited = check_citations(item.text, item.available_citations)
     return replace(
         item,
         facts_found=found,
         facts_expected=expected,
+        facts_found_all=found_all,
+        facts_expected_all=expected_all,
         citations_valid=valid,
         cited_count=cited,
         language_correct=check_language(item.text, Language(item.language)),
@@ -832,13 +866,20 @@ def as_markdown(
         "",
         _comparability_line(results),
         "",
-        "| Model | Questions | Key facts recalled | All facts present | Citations valid "
-        "| Citations present | Answer language | Behaviour |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "Key facts recalled is scored on the variant of a field each question asks about,",
+        "so a question asking a resident's fee is graded on the resident figure. The next",
+        "column is the same answers graded against every figure the field states, which is",
+        "what earlier runs reported. Both are shown so the change is visible. The composite",
+        "score uses the scoped figure.",
+        "",
+        "| Model | Questions | Key facts recalled | Recalled, all figures | All facts present "
+        "| Citations valid | Citations present | Answer language | Behaviour |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for result in results:
         lines.append(
             f"| `{result.model}` | {_questions_cell(result)} | {result.fact_recall:.3f} "
+            f"| {result.fact_recall_all_figures:.3f} "
             f"| {result.fact_complete:.3f} | {result.citation_validity:.3f} "
             f"| {result.citation_presence:.3f} | {result.language_match:.3f} "
             f"| {result.behaviour_accuracy:.3f} |"
@@ -889,9 +930,8 @@ def as_markdown(
         "",
         "Speed is a quarter of the score rather than a tie-breaker: a model that is",
         "accurate and takes half a minute to begin answering is not the better choice",
-        "for something a reader is waiting on.",
-        "",
-        "The speed component is a linear scale on the **median time to first token**:",
+        "for something a reader is waiting on. It is a linear scale on the median time",
+        "to first token.",
         "",
         "```",
         "speed = clamp((SLOW - first_token_p50) / (SLOW - FAST), 0, 1)",
@@ -899,18 +939,14 @@ def as_markdown(
         f"  SLOW = {SLOW_FIRST_TOKEN_MS / 1000:.0f} s or more -> 0.0",
         "```",
         "",
-        f"So {FAST_FIRST_TOKEN_MS / 1000:.0f} seconds or less scores 1.0, "
-        f"{SLOW_FIRST_TOKEN_MS / 1000:.0f} seconds or more scores 0.0, and "
-        "the scale is straight between them.",
         "The bounds describe what processor-only inference can do, not what any candidate",
-        "scores: five seconds is about the floor for a four-billion-parameter model that",
-        "must read several hundred tokens of prompt before it can begin, and a minute is",
-        "long past the point a reader gives up. They were fixed before the models were",
-        "compared. An earlier version zeroed at twenty seconds on the 95th percentile,",
-        "which put every realistic candidate at exactly 0.000 and so quietly removed a",
-        "quarter of the score; the median is also the fairer statistic here, because",
-        "run-to-run variance is large and the tail measures the longest prompt rather",
-        "than how the model feels to use.",
+        "scores, and were fixed before the models were compared: five seconds is about the",
+        "floor for a four-billion-parameter model that must read several hundred tokens of",
+        "prompt before it can begin, and a minute is long past the point a reader gives up.",
+        "An earlier version zeroed at twenty seconds on the 95th percentile, which put",
+        "every realistic candidate at exactly 0.000 and so removed a quarter of the score.",
+        "The median rather than the tail, because run-to-run variance is large and the tail",
+        "measures the longest prompt rather than how the model feels to use.",
         "",
         "| Model | Composite | Speed component | First token p50 used |",
         "|---|---:|---:|---:|",
