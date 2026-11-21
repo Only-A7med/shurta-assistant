@@ -61,7 +61,7 @@ from shurta.evaluation.facts import (
     narrow_items,
 )
 from shurta.evaluation.prepare import build_key_facts
-from shurta.evaluation.retrieval import evaluate_retrieval
+from shurta.evaluation.retrieval import Scores, _interpretation, evaluate_retrieval
 from shurta.models import Corpus, Language, Service
 from shurta.retrieval.hybrid import HybridRetriever
 from shurta.retrieval.store import SearchIndex
@@ -862,6 +862,83 @@ class TestPublishedWeights:
             "answer language 15%, behaviour 15%." in report
         )
         assert "key_fact_recall" not in report
+
+
+class TestRetrievalInterpretation:
+    """The published reading of the retrieval table, generated from it.
+
+    Written once by hand it drifted away from the numbers, so it is derived
+    and these tests pin what it has to say: where the shipped ranking loses,
+    not only where it wins.
+    """
+
+    def _scores(
+        self, figures: dict[str, dict[str, tuple[int, float, float]]]
+    ) -> dict[str, dict[str, Scores]]:
+        """Scores built from (questions, recall@1, recall@5) per method and group."""
+        built: dict[str, dict[str, Scores]] = {}
+        for method, groups in figures.items():
+            built[method] = {}
+            for group, (total, at_one, at_five) in groups.items():
+                bucket = Scores(total=total)
+                bucket.hits[1] = round(at_one * total)
+                bucket.hits[3] = round(at_five * total)
+                bucket.hits[5] = round(at_five * total)
+                bucket.reciprocal_ranks = [at_one] * total
+                built[method][group] = bucket
+        return built
+
+    @property
+    def measured(self) -> dict[str, dict[str, Scores]]:
+        return self._scores(
+            {
+                "bm25": {
+                    "overall": (110, 0.827, 0.945),
+                    "code_switched": (5, 1.000, 1.000),
+                    "gulf": (15, 0.867, 0.933),
+                },
+                "dense": {
+                    "overall": (110, 0.918, 0.973),
+                    "code_switched": (5, 0.800, 0.800),
+                    "gulf": (15, 0.867, 1.000),
+                },
+                "hybrid": {
+                    "overall": (110, 0.900, 0.964),
+                    "code_switched": (5, 1.000, 1.000),
+                    "gulf": (15, 0.800, 1.000),
+                },
+            }
+        )
+
+    def test_it_says_by_how_much_vector_search_alone_is_ahead(self) -> None:
+        text = _interpretation(self.measured)
+        assert "ahead at rank 1: 0.918 against the fused 0.900, which is 2 questions in 110" in text
+
+    def test_it_says_why_fusion_is_kept_without_overclaiming(self) -> None:
+        text = _interpretation(self.measured)
+        assert "keyword matching holds on to exact terms the embedding can miss" in text
+        assert "1.000 on the code-switched group, 5 questions" in text
+        # Keyword search alone also reaches 1.000 there, so fusion cannot be
+        # called the only method that does.
+        assert "only method" not in text
+        assert "Losing a whole class of question" not in text
+
+    def test_it_names_the_group_where_fusion_is_the_worst_of_the_three(self) -> None:
+        text = _interpretation(self.measured)
+        assert (
+            "Gulf dialect is the one group where fusion scores below both methods on their "
+            "own: recall@1 0.800 against 0.867 for both, over 15 questions" in text
+        )
+
+    def test_a_group_fusion_merely_ties_is_not_called_a_loss(self) -> None:
+        tied = self.measured
+        tied["hybrid"]["gulf"].hits[1] = round(0.867 * 15)
+        assert "fusion scores below both methods" not in _interpretation(tied)
+
+    def test_weighted_fusion_is_offered_as_untuned(self) -> None:
+        text = _interpretation(self.measured)
+        assert "Weighted fusion is a possible next step rather than a measured one" in text
+        assert "no held-out set to tune them on" in text
 
 
 # --------------------------------------------------------------------------

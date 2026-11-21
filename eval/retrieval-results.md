@@ -48,8 +48,10 @@ is assembled from several sections of the same service.
 
 ## Reading these numbers
 
-Vector search alone has the better overall recall@1: 0.918 against the fused 0.900, a difference of 2 questions out of 110.
+Vector search alone is ahead at rank 1: 0.918 against the fused 0.900, which is 2 questions in 110.
 
-The fused ranking earns its place on the code-switched questions, where it reaches recall@1 of 1.000 against vector search's 0.800: a service name typed in Latin script inside an Arabic sentence is matched by keyword search and missed by the embedding. Losing a whole class of question is worse than losing a point of overall accuracy, so the fused ranking is the one the assistant uses.
+The fused ranking is kept because keyword matching holds on to exact terms the embedding can miss: a service name typed in Latin script inside an Arabic sentence, or a figure. It reaches recall@1 of 1.000 on the code-switched group, 5 questions, where vector search alone reaches 0.800.
 
-The weakest group is Gulf dialect, at recall@1 0.800 over 15 questions, recovering to 1.000 by rank 5. The sample is small enough that each question moves the figure a long way, so this is a direction to investigate rather than a measured conclusion.
+Gulf dialect is the one group where fusion scores below both methods on their own: recall@1 0.800 against 0.867 for both, over 15 questions, recovering to 1.000 by rank 5. One question moves that group by 0.067, so it is a direction to look at rather than a measured conclusion.
+
+Weighted fusion is a possible next step rather than a measured one. The weights are equal and were not tuned, because there is no held-out set to tune them on: tuning them on the same 110 questions these figures come from would fit the weights to the numbers published beside them.

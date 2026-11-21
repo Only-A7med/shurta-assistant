@@ -34,6 +34,14 @@ METHOD_NAMES = {
     "hybrid": "Hybrid, fused",
 }
 
+GROUP_NAMES = {
+    "overall": "Overall",
+    "en": "English",
+    "ar": "Arabic (Modern Standard)",
+    "gulf": "Gulf dialect",
+    "code_switched": "Code-switched",
+}
+
 
 @dataclass
 class Scores:
@@ -158,13 +166,6 @@ def as_markdown(
     scores: dict[str, dict[str, Scores]], *, index: SearchIndex, question_count: int
 ) -> str:
     groups = ["overall", *sorted(set(scores["hybrid"]) - {"overall"})]
-    labels = {
-        "overall": "Overall",
-        "en": "English",
-        "ar": "Arabic (Modern Standard)",
-        "gulf": "Gulf dialect",
-        "code_switched": "Code-switched",
-    }
 
     lines = [
         "# Retrieval evaluation",
@@ -186,7 +187,7 @@ def as_markdown(
         if not rows or rows[0][1].total == 0:
             continue
         lines += [
-            f"## {labels.get(group, group)} ({rows[0][1].total} questions)",
+            f"## {GROUP_NAMES.get(group, group)} ({rows[0][1].total} questions)",
             "",
             "| Method | recall@1 | recall@3 | recall@5 | MRR |",
             "|---|---:|---:|---:|---:|",
@@ -202,6 +203,35 @@ def as_markdown(
         lines += ["## Reading these numbers", "", interpretation, ""]
 
     return "\n".join(lines)
+
+
+def _single_methods_both_ahead(
+    scores: dict[str, dict[str, Scores]],
+) -> list[tuple[str, Scores, Scores, Scores]]:
+    """Groups where the fused ranking is below keyword *and* vector search.
+
+    The shipped ranking being the worst of the three somewhere is the thing a
+    reader most needs told, so it is found from the numbers rather than
+    remembered from the run that first showed it.
+    """
+    losing: list[tuple[str, Scores, Scores, Scores]] = []
+    for group, hybrid in scores["hybrid"].items():
+        if group == "overall" or not hybrid.total:
+            continue
+        bm25 = scores["bm25"].get(group)
+        dense = scores["dense"].get(group)
+        if bm25 is None or dense is None:
+            continue
+        if hybrid.recall(1) < bm25.recall(1) and hybrid.recall(1) < dense.recall(1):
+            losing.append((group, hybrid, bm25, dense))
+    return losing
+
+
+def _rivals(bm25: Scores, dense: Scores) -> str:
+    """The two single methods' recall@1, said once when they agree."""
+    if bm25.recall(1) == dense.recall(1):
+        return f"{bm25.recall(1):.3f} for both"
+    return f"{bm25.recall(1):.3f} for keyword search and {dense.recall(1):.3f} for vector search"
 
 
 def _interpretation(scores: dict[str, dict[str, Scores]]) -> str:
@@ -220,31 +250,49 @@ def _interpretation(scores: dict[str, dict[str, Scores]]) -> str:
     if gap > 0:
         questions = round(gap * dense.total)
         paragraphs.append(
-            f"Vector search alone has the better overall recall@1: {dense.recall(1):.3f} "
-            f"against the fused {hybrid.recall(1):.3f}, a difference of {questions} "
-            f"question{'s' if questions != 1 else ''} out of {dense.total}."
+            f"Vector search alone is ahead at rank 1: {dense.recall(1):.3f} against the fused "
+            f"{hybrid.recall(1):.3f}, which is {questions} "
+            f"question{'s' if questions != 1 else ''} in {dense.total}."
         )
 
     switched = scores.get("hybrid", {}).get("code_switched")
     switched_dense = scores.get("dense", {}).get("code_switched")
     if switched and switched_dense and switched.recall(1) > switched_dense.recall(1):
         paragraphs.append(
-            f"The fused ranking earns its place on the code-switched questions, where it "
-            f"reaches recall@1 of {switched.recall(1):.3f} against vector search's "
-            f"{switched_dense.recall(1):.3f}: a service name typed in Latin script inside "
-            "an Arabic sentence is matched by keyword search and missed by the embedding. "
-            "Losing a whole class of question is worse than losing a point of overall "
-            "accuracy, so the fused ranking is the one the assistant uses."
+            "The fused ranking is kept because keyword matching holds on to exact terms the "
+            "embedding can miss: a service name typed in Latin script inside an Arabic "
+            f"sentence, or a figure. It reaches recall@1 of {switched.recall(1):.3f} on the "
+            f"code-switched group, {switched.total} questions, where vector search alone "
+            f"reaches {switched_dense.recall(1):.3f}."
         )
 
-    gulf = scores.get("hybrid", {}).get("gulf")
-    if gulf and gulf.total and gulf.recall(1) < hybrid.recall(1):
+    losing = _single_methods_both_ahead(scores)
+    if len(losing) == 1:
+        group, fused, bm25, single = losing[0]
         paragraphs.append(
-            f"The weakest group is Gulf dialect, at recall@1 {gulf.recall(1):.3f} over "
-            f"{gulf.total} questions, recovering to {gulf.recall(5):.3f} by rank 5. The "
-            "sample is small enough that each question moves the figure a long way, so "
-            "this is a direction to investigate rather than a measured conclusion."
+            f"{GROUP_NAMES.get(group, group)} is the one group where fusion scores below both "
+            f"methods on their own: recall@1 {fused.recall(1):.3f} against "
+            f"{_rivals(bm25, single)}, over {fused.total} questions, recovering to "
+            f"{fused.recall(5):.3f} by rank 5. One question moves that group by "
+            f"{1 / fused.total:.3f}, so it is a direction to look at rather than a measured "
+            "conclusion."
         )
+    elif losing:
+        listed = "; ".join(
+            f"{GROUP_NAMES.get(group, group)} {fused.recall(1):.3f} against "
+            f"{_rivals(bm25, single)} over {fused.total} questions"
+            for group, fused, bm25, single in losing
+        )
+        paragraphs.append(
+            f"Fusion scores below both methods on their own in {len(losing)} groups: {listed}."
+        )
+
+    paragraphs.append(
+        "Weighted fusion is a possible next step rather than a measured one. The weights are "
+        "equal and were not tuned, because there is no held-out set to tune them on: tuning "
+        f"them on the same {dense.total} questions these figures come from would fit the "
+        "weights to the numbers published beside them."
+    )
 
     return "\n\n".join(paragraphs)
 
