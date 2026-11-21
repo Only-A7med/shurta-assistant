@@ -5,25 +5,22 @@ entirely on the machine it is installed on. Ask in English, Modern Standard Arab
 what a service costs, what documents it needs or how long it takes, and get a short answer with a
 citation against each fact and a link to the official page it came from.
 
-> **Unofficial project.** Not affiliated with, endorsed by or connected to Dubai Police or any other
+> Unofficial project. Not affiliated with, endorsed by or connected to Dubai Police or any other
 > authority. See [Data and attribution](#data-and-attribution).
-
-<!-- A short recording of a question being answered belongs here:
-     ![Asking for a fee in Arabic and in English](docs/demo.gif) -->
-*A recording of the interface answering a question in each language goes here.*
 
 ## Highlights
 
-- **Bilingual, including dialect and code-switching.** A question is answered in the language it
-  was asked, and one that mixes the two is handled as Arabic.
-- **Every fact is cited**, with a link to the official page and the date it was collected.
-- **No GPU required.** Generation and embedding run locally through Ollama, with a roughly
-  four-billion-parameter model at four-bit quantisation.
-- **Nothing leaves the machine.** No question is logged, stored or sent anywhere.
-- **Guardrails before the model.** Emergencies get the emergency numbers immediately; questions
-  about somebody's own case are declined with the official channel named; questions the collected
-  information does not cover are refused rather than guessed at.
-- **Measured, not asserted.** Retrieval, answer accuracy and latency are evaluated by rule, and the
+- Bilingual, including dialect and code-switching. A question is answered in the language it was
+  asked, and one that mixes the two is handled as Arabic.
+- Answers cite their sources, with a link to the official page and the date it was collected.
+- Runs on standard hardware — no GPU required. Generation and embedding run locally through
+  Ollama, with a roughly four-billion-parameter model at four-bit quantisation.
+- Nothing leaves the machine. No question is logged, stored or sent anywhere.
+- Guardrails before the model. Emergencies get the emergency numbers immediately, and questions
+  about somebody's own case are declined with the official channel named. The assistant declines
+  when the retrieved passages do not cover the question, though two adjacent questions in the
+  evaluation set still reach the model — see [Limitations](#limitations).
+- Measured, not asserted. Retrieval, answer accuracy and latency are evaluated by rule, and the
   reports are in [`eval/`](eval/).
 
 ## How it works
@@ -106,7 +103,7 @@ Windows, so ask from the command line with Python:
 
 ## With Docker
 
-Ollama is **not** containerised: it stays on the host, where it keeps the model resident between
+Ollama is not containerised: it stays on the host, where it keeps the model resident between
 requests. The containers reach it at `host.docker.internal`.
 
 Pull the models and build the knowledge base as above — the images carry no content — then:
@@ -138,11 +135,11 @@ official public site by whoever runs the project, onto their own machine, and is
 derived from them. What is committed is the collector, the questions, the aggregate scores, and a
 small invented catalogue for a fictional city police force that the tests run against.
 
-The collected content belongs to **Dubai Police**, whose terms reserve all rights over it. Service
+The collected content belongs to Dubai Police, whose terms reserve all rights over it. Service
 information, fees and procedures are theirs; this project only reads the public pages and cites
 them. It is an unofficial, unaffiliated demonstration and is not endorsed by Dubai Police or by any
 other authority. Nothing here is advice: check <https://www.dubaipolice.gov.ae>, the Dubai Police
-app, or call 901 — and **999 in an emergency**.
+app, or call 901 — and 999 in an emergency.
 
 ## Guardrails
 
@@ -155,9 +152,9 @@ Three kinds of question never reach a model:
 | Something the catalogue does not cover | "I could not find this in the service information I have", with the official channels |
 
 Routing is correct for every emergency and every personal-case question in the evaluation set, and
-for four of the six out-of-scope ones before any model runs. The other two are genuinely adjacent
-government services, so they are left to the prompt, which can see the passages and say they cover
-something else.
+for four of the six out-of-scope ones before any model runs. The other two are adjacent government
+services, so they are left to the prompt, which can see the passages and say they cover something
+else.
 
 ## Evaluation
 
@@ -176,9 +173,14 @@ Measured by rule rather than judged by a model, on the committed question set. T
 | Hybrid, fused *(what ships)* | 0.900 | 0.945 | 0.964 | 0.931 |
 
 Fused, by group: English 0.911 · Modern Standard Arabic 0.911 · code-switched 1.000 · Gulf dialect
-0.800 at rank 1, reaching 1.000 by rank 5. Vector search alone scores two questions in 110 higher
-overall, but the fused ranking ships because it answers every code-switched question at rank 1
-where vector search misses one in five.
+0.800 at rank 1, reaching 1.000 by rank 5.
+
+Vector search alone is ahead by 2 questions in 110 at rank 1. The fused ranking ships anyway,
+because keyword matching holds on to the exact terms an embedding can miss — a service name typed
+in Latin script, a figure — and it reaches 1.000 on the 5 code-switched questions, where vector
+search alone reaches 0.800. Gulf dialect is the one group where fusion scores below both methods on
+their own, 0.800 against 0.867 over 15 questions. Weighting the two methods instead of fusing them
+equally is a possible next step that was not tuned, because there is no held-out set to tune it on.
 
 ### Answers
 
@@ -190,7 +192,7 @@ default.
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | **`gemma3:4b`** *(default)* | 130 | **0.826** | 0.719 | 0.689 | 1.000 | 0.955 | 1.000 | 0.992 | **0.920** |
 | `qwen3:4b-instruct-2507-q4_K_M` | 130 | 0.755 | 0.657 | 0.541 | 1.000 | 0.973 | 0.985 | 0.992 | 0.898 |
-| `qwen3:4b` | 20 *(subset)* | 0.344 | 0.458 | 0.400 | 1.000 | 0.400 | 0.500 | 1.000 | 0.570 |
+| `qwen3:4b` | 20 *(subset)* | — | — | — | — | — | — | — | — |
 
 Key facts are scored on the variant of a field each question asks about: a question about the fee
 *for a resident* is graded on the resident figure, not on the citizen and overseas figures as well.
@@ -200,32 +202,34 @@ them relative to each other.
 
 `gemma3:4b` is the default on accuracy — the two instruction models are within half a second of
 each other on time to first token. `qwen3:4b` reasons before answering and the provider offers no
-way to switch that off, so half of its answers came back empty.
+way to switch that off: only 10 of its 20 answers were non-empty, so accuracy is not reported for
+it, and its first token takes a median of 39.8 seconds.
 
 ### Time to first token
 
 At the shipped defaults `gemma3:4b` reaches its first token in a median of 9.2 seconds over all 130
 questions, and 10.8 seconds on a 20-question subset re-run with nothing else on the machine.
 
-A 4-second target was **not** reached, and is not reachable here without answering worse: prompt
-processing is 99% of the wait, and 4 seconds buys about 200 tokens where the passages and question
-alone are around 390. Capping passage length and dropping to three passages both hit the target and
-both cost key-fact recall, so both were reverted; naming each service once per group of passages
-saved 89 prompt tokens and was kept.
+A 4-second target was not reached, and is not reachable in these measurements without answering
+worse: prompt processing is 99% of the wait, and 4 seconds buys about 200 tokens where the passages
+and question alone are around 390. Capping passage length and dropping to three passages both hit
+the target and both cost key-fact recall, so both were reverted; naming each service once per group
+of passages saved 89 prompt tokens and was kept.
 
 These figures are processor-only and vary from run to run: identical settings have produced 15.0 s
 and 18.3 s, so differences under about 20% are not evidence of anything, and anything else
 competing for the processor inflates them. Generation threads are left for the provider to choose —
-set `NUM_THREAD` to tune it, ideally to the number of physical cores, worth about 2 seconds here.
+set `NUM_THREAD` to tune it, ideally to the number of physical cores, worth about 2 seconds in
+these measurements.
 
 ### Why the wrong answers were wrong
 
 Every answerable question that missed a fact or carried no citation was classified by cause.
-Retrieval accounts for little of it: 8 of 53 failures for `gemma3:4b`. Nothing was caused by a gap
-in the source. Six grading rules turned out to be wrong and are fixed, two of them in the stricter
-direction — including one that scored two models 3/3 and 0/3 for naming the same three documents.
-The counts, the rules and the two prompt changes that were measured and reverted are in
-[`eval/results.md`](eval/results.md).
+Retrieval accounts for little of it: 8 of 53 failures for `gemma3:4b`, counted before the questions
+recorded which figure they ask for. Nothing was caused by a gap in the source. Six grading rules
+turned out to be wrong and are fixed, two of them in the stricter direction — including one that
+scored two models 3/3 and 0/3 for naming the same three documents. The counts, the rules and the two
+prompt changes that were measured and reverted are in [`eval/results.md`](eval/results.md).
 
 ## Development
 
@@ -246,22 +250,21 @@ also builds both Docker images, so the Dockerfiles are verified on every push.
 
 ## Limitations
 
-- **Freshness.** The catalogue is a snapshot; a fee that changed on the official page yesterday is
+- Freshness. The catalogue is a snapshot; a fee that changed on the official page yesterday is
   wrong here until the next `ingest`. Every answer carries its collection date.
-- **Procedure steps are empty for every service**, because the source publishes none.
+- Procedure steps are empty for every service, because the source publishes none.
   Approximating them would be inventing procedure.
-- **Field coverage follows the source.** Names, descriptions, eligibility, processing times and
+- Field coverage follows the source. Names, descriptions, eligibility, processing times and
   channels are complete; required documents cover about two services in five and fees about one in
   four.
-- **Gulf dialect is the weakest group in retrieval**, though not by much: recall@1 of 0.800 against
-  0.911 for English and Modern Standard Arabic, reaching 1.000 by rank 5. An earlier run put it at
-  0.400, but that was over five questions; on fifteen the gap is far smaller, and fifteen is still
-  a small sample.
-- **Two out-of-scope questions reach the model**, being adjacent government services, and the
+- Gulf dialect is the weakest group in retrieval: recall@1 of 0.800 over 15 questions, against
+  0.911 for English and Modern Standard Arabic, reaching 1.000 by rank 5. It is also the one group
+  where fusion scores below keyword and vector search on their own, which both reach 0.867.
+- Two out-of-scope questions reach the model, being adjacent government services, and the
   prompt does not reliably decline them.
-- **No reasoning across services.** Retrieval finds passages; it does not compare two services or
+- No reasoning across services. Retrieval finds passages; it does not compare two services or
   work out a consequence.
-- **One question at a time.** There is no conversation history, by design: nothing a reader types
+- One question at a time. There is no conversation history, by design: nothing a reader types
   is kept.
 
 ## Licence
