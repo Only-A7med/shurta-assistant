@@ -269,6 +269,35 @@ class TestChatEndpoint:
         assert names[-1] == "done"
         assert "token" in names
 
+    def test_the_sources_reach_the_reader_before_the_first_token(self, client: TestClient) -> None:
+        """Perceived speed: the citations panel must not wait for generation.
+
+        Retrieval takes tens of milliseconds and generation takes seconds, so
+        the sources are sent in ``start`` — straight after retrieval, before a
+        single token exists. The panel is filled while the answer is still
+        being written. The ``done`` event repeats them unchanged.
+        """
+        response = client.post("/api/chat", json={"question": "good conduct certificate fee"})
+        events = _events(response.text)
+        names = [name for name, _payload in events]
+
+        start = events[0]
+        assert start[0] == "start"
+        assert names.index("start") < names.index("token")
+        assert start[1]["citations"]
+        assert start[1]["citations"][0]["number"] == 1
+        assert start[1]["citations"][0]["url"]
+        assert start[1]["citations"][0]["service_name"]
+
+        done = next(payload for name, payload in events if name == "done")
+        assert start[1]["citations"] == done["citations"]
+
+    def test_a_response_with_no_sources_says_so_at_the_start(self, client: TestClient) -> None:
+        """An emergency has no citations, and the panel must learn that at once."""
+        response = client.post("/api/chat", json={"question": "Help, my building is on fire"})
+        start = next(payload for name, payload in _events(response.text) if name == "start")
+        assert start["citations"] == []
+
     def test_the_done_event_carries_the_citations_and_the_full_text(
         self, client: TestClient
     ) -> None:

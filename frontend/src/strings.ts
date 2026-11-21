@@ -48,7 +48,7 @@ const EN: Strings = {
   failed: "That answer could not be completed.",
   retry: "Try again",
   disclaimer:
-    "Unofficial project, not affiliated with or endorsed by any police force. Information may be out of date. In an emergency call 999.",
+    "Unofficial project, not affiliated with or endorsed by Dubai Police. Information may be out of date. In an emergency call 999.",
   emergencyNote: "In an emergency, call 999.",
   languageToggle: "العربية",
   catalogue: (services, collected) => `${services} services, collected ${collected}`,
@@ -73,7 +73,7 @@ const AR: Strings = {
   failed: "لم تكتمل هذه الإجابة.",
   retry: "أعد المحاولة",
   disclaimer:
-    "مشروع غير رسمي وغير تابع لأي جهة شرطية ولا معتمد منها. قد تكون المعلومات غير محدَّثة. في الحالات الطارئة اتصل بالرقم ٩٩٩.",
+    "مشروع غير رسمي وغير تابع لشرطة دبي ولا معتمد منها. قد تكون المعلومات غير محدَّثة. في الحالات الطارئة اتصل بالرقم ٩٩٩.",
   emergencyNote: "في الحالات الطارئة اتصل بالرقم ٩٩٩.",
   languageToggle: "English",
   catalogue: (services, collected) => `${services} خدمة، جُمعت في ${collected}`,

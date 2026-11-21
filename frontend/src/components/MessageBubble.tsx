@@ -32,7 +32,15 @@ export function MessageBubble({
       {label && <p className={`bubble-tag tag-${message.kind ?? ""}`}>{label[uiLanguage]}</p>}
 
       {/* dir="auto" so a message mixing Arabic and English lays itself out. */}
-      <div className="bubble-text" dir="auto" aria-live={message.streaming ? "polite" : "off"}>
+      {/* While streaming, announce the text as it is appended rather than
+          repeating the whole answer on every token. */}
+      <div
+        className="bubble-text"
+        dir="auto"
+        aria-live={message.streaming ? "polite" : "off"}
+        aria-atomic="false"
+        aria-busy={message.streaming}
+      >
         {message.role === "assistant" ? (
           <AnswerText
             text={message.text}
