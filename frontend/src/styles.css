@@ -302,6 +302,14 @@ a {
   color: var(--ink-soft);
 }
 
+/* The question's language, kept quieter than the label beside it. */
+.chip-note {
+  margin-inline-start: 0.4rem;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.75;
+}
+
 .chip-question {
   font-size: 0.95rem;
 }

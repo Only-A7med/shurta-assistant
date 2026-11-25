@@ -1,8 +1,11 @@
 import type { UiLanguage } from "./types";
 
 export interface Example {
+  /** What the question asks about. */
   label: string;
   question: string;
+  /** The question's language, noted only when it is not the interface's. */
+  note?: string;
   kind: "service" | "dialect" | "emergency" | "personal";
 }
 
@@ -16,6 +19,7 @@ interface Strings {
   examplesHeading: string;
   citationsHeading: string;
   noCitations: string;
+  noCitationsYet: string;
   collectedOn: string;
   thinking: string;
   warming: string;
@@ -40,6 +44,7 @@ const EN: Strings = {
   examplesHeading: "Try one of these",
   citationsHeading: "Sources",
   noCitations: "No sources for this answer.",
+  noCitationsYet: "Sources appear here after you ask a question.",
   collectedOn: "collected",
   thinking: "Looking through the service information…",
   warming: "The model is warming up. The first answer will take longer than the rest.",
@@ -65,6 +70,7 @@ const AR: Strings = {
   examplesHeading: "جرّب أحد هذه الأسئلة",
   citationsHeading: "المصادر",
   noCitations: "لا توجد مصادر لهذه الإجابة.",
+  noCitationsYet: "تظهر المصادر هنا بعد أن تسأل سؤالاً.",
   collectedOn: "جُمعت في",
   thinking: "يجري البحث في معلومات الخدمات…",
   warming: "يجري تحميل النموذج. ستأخذ الإجابة الأولى وقتاً أطول من غيرها.",
@@ -84,8 +90,10 @@ export function strings(language: UiLanguage): Strings {
   return language === "ar" ? AR : EN;
 }
 
-/** Five examples: English, Modern Standard Arabic, Gulf dialect, an emergency
- *  and a question about somebody's own case. The last two show the guardrails. */
+/** Five examples, each copied from eval/questions.jsonl and answered
+ *  correctly by the default model in the stored run. The same five questions
+ *  are offered in both interfaces; only the labels and notes are translated.
+ *  The last two show the guardrails. */
 export const EXAMPLES: Record<UiLanguage, Example[]> = {
   en: [
     {
@@ -94,23 +102,57 @@ export const EXAMPLES: Record<UiLanguage, Example[]> = {
       kind: "service",
     },
     {
-      label: "بالعربية",
-      question: "ما هي المستندات المطلوبة لشهادة بحث الحالة الجنائية؟",
+      label: "Fee",
+      question: "هل هناك رسوم إضافية إذا قدمت طلب الشهادة الجنائية شخصياً في المركز؟",
+      note: "in Arabic",
       kind: "service",
     },
-    { label: "Gulf dialect", question: "بكم تطلع شهادة لمن يهمه الأمر؟", kind: "dialect" },
-    { label: "Emergency", question: "There is a fire in my building, what do I do?", kind: "emergency" },
-    { label: "My own case", question: "What is the status of my traffic fine?", kind: "personal" },
+    {
+      label: "Documents",
+      question: "شو الأوراق اللي أبيها لشهادة بحث الحالة الجنائية من برا الدولة؟",
+      note: "in Gulf dialect",
+      kind: "dialect",
+    },
+    {
+      label: "Emergency",
+      question: "Someone is breaking into my house right now",
+      kind: "emergency",
+    },
+    {
+      label: "My own case",
+      question: "What is the status of my traffic fine?",
+      kind: "personal",
+    },
   ],
   ar: [
-    { label: "الرسوم", question: "كم رسوم شهادة بحث الحالة الجنائية للمقيم؟", kind: "service" },
     {
-      label: "In English",
-      question: "What documents do I need for a police clearance certificate?",
+      label: "الرسوم",
+      question: "How much does a police clearance certificate cost for a resident?",
+      note: "بالإنجليزية",
       kind: "service",
     },
-    { label: "بالعامية", question: "بكم تطلع شهادة لمن يهمه الأمر؟", kind: "dialect" },
-    { label: "حالة طارئة", question: "فيه حريق في المبنى، شو أسوي؟", kind: "emergency" },
-    { label: "قضيتي", question: "ما هي حالة مخالفتي المرورية؟", kind: "personal" },
+    {
+      label: "الرسوم",
+      question: "هل هناك رسوم إضافية إذا قدمت طلب الشهادة الجنائية شخصياً في المركز؟",
+      kind: "service",
+    },
+    {
+      label: "المستندات",
+      question: "شو الأوراق اللي أبيها لشهادة بحث الحالة الجنائية من برا الدولة؟",
+      note: "بالعامية الخليجية",
+      kind: "dialect",
+    },
+    {
+      label: "حالة طارئة",
+      question: "Someone is breaking into my house right now",
+      note: "بالإنجليزية",
+      kind: "emergency",
+    },
+    {
+      label: "قضيتي",
+      question: "What is the status of my traffic fine?",
+      note: "بالإنجليزية",
+      kind: "personal",
+    },
   ],
 };

@@ -5,6 +5,8 @@ interface Props {
   citations: Citation[];
   idPrefix: string;
   uiLanguage: UiLanguage;
+  /** Whether an answer is on screen, so an empty panel can say which it is. */
+  hasAnswer: boolean;
 }
 
 const SECTION: Record<string, Record<UiLanguage, string>> = {
@@ -17,10 +19,12 @@ const SECTION: Record<string, Record<UiLanguage, string>> = {
   steps: { en: "Steps", ar: "الخطوات" },
 };
 
-export function Citations({ citations, idPrefix, uiLanguage }: Props) {
+export function Citations({ citations, idPrefix, uiLanguage, hasAnswer }: Props) {
   const text = strings(uiLanguage);
   if (citations.length === 0) {
-    return <p className="citations-empty">{text.noCitations}</p>;
+    return (
+      <p className="citations-empty">{hasAnswer ? text.noCitations : text.noCitationsYet}</p>
+    );
   }
 
   return (

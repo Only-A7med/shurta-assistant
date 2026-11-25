@@ -183,7 +183,10 @@ export default function App() {
                         onClick={() => void ask(example.question)}
                         disabled={busy}
                       >
-                        <span className="chip-label">{example.label}</span>
+                        <span className="chip-label">
+                          {example.label}
+                          {example.note && <span className="chip-note">{example.note}</span>}
+                        </span>
                         <span className="chip-question" dir="auto">
                           {example.question}
                         </span>
@@ -238,6 +241,7 @@ export default function App() {
             citations={shown?.citations ?? []}
             idPrefix={PANEL}
             uiLanguage={uiLanguage}
+            hasAnswer={shown !== null}
           />
           <p className="emergency-note">{text.emergencyNote}</p>
         </aside>
