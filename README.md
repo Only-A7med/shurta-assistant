@@ -54,7 +54,7 @@ flowchart TD
 ## Requirements
 
 - Python 3.12 — the project pins `==3.12.*`, so 3.11 and 3.13 are both rejected by the install.
-- Node 20.19 or newer, for the web interface.
+- Node 22 (22.12 or later) or Node 24, for the web interface.
 - [Ollama](https://ollama.com) running on the same machine.
 - About 6 GB of free memory and 6 GB of disk for the models.
 
