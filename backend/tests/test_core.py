@@ -212,6 +212,17 @@ class TestDoctor:
 class TestTheShippedDefaults:
     """What a fresh clone gets must match what the documentation promises."""
 
+    @pytest.fixture(autouse=True)
+    def _ignore_local_configuration(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A developer's own shell must not reach these tests.
+
+        The ``.env`` file is kept out by ``_env_file=None`` on each call; this
+        clears the variables a field would otherwise read from the shell.
+        """
+        for name in Settings.model_fields:
+            monkeypatch.delenv(name.upper(), raising=False)
+            monkeypatch.delenv(name.lower(), raising=False)
+
     def _env_example(self) -> dict[str, str]:
         text = (REPOSITORY_ROOT / ".env.example").read_text(encoding="utf-8")
         values: dict[str, str] = {}
@@ -230,19 +241,22 @@ class TestTheShippedDefaults:
         `config.py` another, so a clone with no `.env` ran a different model
         from the documented one.
         """
-        assert Settings().generation_model == self._env_example()["GENERATION_MODEL"]
+        settings = Settings(_env_file=None)  # type: ignore[call-arg]
+        assert settings.generation_model == self._env_example()["GENERATION_MODEL"]
 
     def test_the_embedding_model_default_matches_env_example(self) -> None:
-        assert Settings().embedding_model == self._env_example()["EMBEDDING_MODEL"]
+        settings = Settings(_env_file=None)  # type: ignore[call-arg]
+        assert settings.embedding_model == self._env_example()["EMBEDDING_MODEL"]
 
     def test_the_retrieval_budget_matches_env_example(self) -> None:
         example = self._env_example()
-        settings = Settings()
+        settings = Settings(_env_file=None)  # type: ignore[call-arg]
         assert settings.top_k == int(example["TOP_K"])
         assert settings.num_ctx == int(example["NUM_CTX"])
         assert settings.max_answer_tokens == int(example["MAX_ANSWER_TOKENS"])
 
     def test_no_thread_count_is_pinned_by_default(self) -> None:
         """The numbers published are the ones a fresh clone reproduces."""
-        assert Settings().num_thread is None
-        assert Settings().max_passage_chars is None
+        settings = Settings(_env_file=None)  # type: ignore[call-arg]
+        assert settings.num_thread is None
+        assert settings.max_passage_chars is None
